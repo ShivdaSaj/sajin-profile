@@ -1,0 +1,13 @@
+{
+  "name": "sajin-profile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sajin Shivdas profile: a scroll story told by one particle system, with an admin panel.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "ADMIN_PASSWORD=dev COOKIE_SECURE=false node server.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

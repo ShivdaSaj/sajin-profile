@@ -1,0 +1,155 @@
+// Builds the page from /api/content and drives the scroll story: Lenis smooth scrolling, a stage value
+// derived from real section positions, section fades, text reveals and the particle system.
+import Lenis from "/vendor/lenis.mjs";
+import { createParticles } from "./particles.js";
+
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (v == null || v === false) continue; if (k === "class") el.className = v; else if (k === "style") el.setAttribute("style", v); else el.setAttribute(k, v === true ? "" : v); }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return el;
+}
+const svg = (tag, attrs = {}, ...kids) => { const el = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); el.append(...kids); return el; };
+// Letters are grouped per word so long names and roles can wrap between words.
+const chars = (text, cls = "char") => { let i = 0; return text.split(/(\s+)/).filter(Boolean).map((w) => (/^\s+$/.test(w) ? " " : h("span", { class: "w" }, [...w].map((c) => h("span", { class: cls, style: `--i:${i++}` }, c))))); };
+const words = (text) => text.split(/\s+/).filter(Boolean).flatMap((w, i) => [h("span", { class: "word", style: `--i:${i}` }, w), " "]);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const safeUrl = (u) => (/^(https?:|mailto:)/i.test(u || "") ? u : null);
+
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const coarse = matchMedia("(pointer: coarse)").matches;
+
+function render(c) {
+  const name = `${c.hero.firstName} ${c.hero.lastName}`.trim();
+  $("#barName").textContent = name; $("#barContact").textContent = c.contact.kicker;
+  const works = c.works.items;
+  const pad = (n) => String(n).padStart(2, "0");
+  $("#main").replaceChildren(
+    h("section", { class: "s s-hero", id: "top", "data-stage": "0" },
+      h("div", { class: "sticky" },
+        h("h1", { class: "hero-title" }, h("span", { class: "hero-name", "aria-label": name }, chars(name)), h("span", { class: "hero-role", "aria-label": c.hero.role }, chars(c.hero.role))),
+        h("p", { class: "hint" }, h("span", { class: "hint-line" }), c.hero.scrollHint))),
+    h("section", { class: "s s-statement", "data-stage": "1", "data-len": "1.7" },
+      h("div", { class: "sticky" }, h("p", { class: "statement reveal-words" }, words(c.statement.text)))),
+    h("section", { class: "s s-globe", "data-stage": "2", "data-len": "1.6" },
+      h("div", { class: "sticky" },
+        h("div", { class: "ring", "aria-hidden": "true" }, svg("svg", { viewBox: "0 0 400 400" },
+          svg("defs", {}, svg("path", { id: "ringPath", d: "M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" })),
+          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "57%" }, c.globe.ringTop)),
+          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "7%" }, c.globe.ringBottom)))),
+        h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`))),
+    h("section", { class: "s s-location", "data-stage": "3", "data-len": "1.5" },
+      h("div", { class: "sticky" }, h("p", { class: "label loc-label" }, c.location.label))),
+    h("section", { class: "s s-approach", "data-stage": "4", "data-len": "1.6" },
+      h("div", { class: "sticky" }, h("p", { class: "statement small approach reveal-words" }, words(c.approach.text)))),
+    h("section", { class: "s s-works", "data-stage": "5", id: "work" },
+      h("div", { class: "sticky" },
+        h("div", { class: "works-head" }, h("p", { class: "kicker" }, c.works.kicker), h("p", { class: "works-count" }, h("span", { id: "workIdx" }, "01"), ` / ${pad(works.length)}`)),
+        h("ol", { class: "track", id: "track" }, works.map((w, i) => { const href = safeUrl(w.url);
+          return h("li", { class: "work" }, h(href ? "a" : "div", { class: "work-link", href, target: href && !href.startsWith("mailto:") ? "_blank" : null, rel: href ? "noopener" : null },
+            h("span", { class: "work-idx" }, pad(i + 1)), h("span", { class: "work-title" }, w.title),
+            h("span", { class: "work-meta" }, [w.role, w.year].filter(Boolean).join(" · ")),
+            w.description ? h("span", { class: "work-desc" }, w.description) : null,
+            w.tags.length ? h("span", { class: "work-tags" }, w.tags.map((t) => h("i", {}, t))) : null)); })))),
+    h("section", { class: "s s-closing", "data-stage": "6", "data-len": "1.4" },
+      h("div", { class: "sticky" }, h("p", { class: "statement closing reveal-words" }, words(c.works.closingLine)))),
+    h("section", { class: "s s-contact", "data-stage": "7", id: "contact" },
+      h("div", { class: "contact" }, h("p", { class: "kicker" }, c.contact.kicker),
+        h("a", { class: "email", id: "email", href: `mailto:${c.contact.email}` }, chars(c.contact.email, "echar")),
+        c.contact.links.length ? h("p", { class: "links" }, c.contact.note, " ", c.contact.links.map((l, i) => [i ? h("span", { class: "dot" }, "·") : null, h("a", { href: safeUrl(l.url), target: "_blank", rel: "noopener" }, l.label)])) : null),
+      h("footer", { class: "foot" }, h("span", { class: "foot-left" }, h("span", { class: "mono", "data-tip": c.footer.tip, tabindex: "0" }, initials(name)), `${c.footer.text} — © ${new Date().getFullYear()}`),
+        h("a", { class: "foot-right", href: "#top" }, "Back to top ↑"))));
+}
+const initials = (n) => n.split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2).toUpperCase();
+
+// ---------- scroll model ----------
+let sections = [], anchors = [], vh = innerHeight;
+function measure() {
+  vh = innerHeight;
+  const track = $("#track"), works = $(".s-works");
+  if (track && works) { const extra = Math.max(0, track.scrollWidth - innerWidth); works.style.height = `${Math.round(extra + vh * 1.6)}px`; works.dataset.extra = extra; }
+  sections = $$("section.s").map((el) => { const len = parseFloat(el.dataset.len || "0"); if (len && !el.classList.contains("s-works")) el.style.height = `${len * 100}vh`;
+    const top = el.offsetTop, height = el.offsetHeight; return { el, top, height, stage: +el.dataset.stage }; });
+  anchors = [];
+  for (const s of sections) { if (s.height > vh * 1.3) anchors.push([s.top, s.stage], [s.top + s.height - vh, s.stage]); else anchors.push([s.top + (s.height - vh) / 2, s.stage]); }
+  anchors.sort((a, b) => a[0] - b[0]);
+}
+function stageAt(y) {
+  if (!anchors.length) return 0; if (y <= anchors[0][0]) return anchors[0][1];
+  for (let i = 1; i < anchors.length; i++) { const [y1, s1] = anchors[i]; const [y0, s0] = anchors[i - 1]; if (y <= y1) return y1 === y0 ? s1 : s0 + ((y - y0) / (y1 - y0)) * (s1 - s0); }
+  return anchors[anchors.length - 1][1];
+}
+
+function update(y, gl) {
+  for (const s of sections) {
+    // fade each section in as it arrives and out as it leaves
+    const vis = clamp(Math.min((y - (s.top - vh * 0.55)) / (vh * 0.45), (s.top + s.height - vh * 0.35 - y) / (vh * 0.45)), 0, 1);
+    s.el.style.setProperty("--vis", vis.toFixed(3));
+    const prog = clamp((y - s.top) / Math.max(s.height - vh, 1), 0, 1);
+    s.el.style.setProperty("--prog", prog.toFixed(4));
+    if (s.el.classList.contains("s-works")) {
+      const extra = +s.el.dataset.extra || 0; const t = clamp((y - s.top - vh * 0.3) / Math.max(s.height - vh * 1.6, 1), 0, 1);
+      $("#track").style.transform = `translate3d(${(-extra * t).toFixed(1)}px,0,0)`;
+      const items = $$(".work"); const idx = clamp(Math.round(t * (items.length - 1)), 0, items.length - 1);
+      $("#workIdx").textContent = String(idx + 1).padStart(2, "0");
+    }
+    for (const p of $$(".reveal-words", s.el)) { const ws = $$(".word", p); const lit = vis < 0.05 ? 0 : Math.round(clamp(prog * 1.6 + 0.15, 0, 1) * ws.length);
+      if (+p.dataset.lit !== lit) { p.dataset.lit = lit; ws.forEach((w, i) => w.classList.toggle("on", i < lit || reducedMotion)); } }
+  }
+  const ring = $(".ring svg"); if (ring) ring.style.transform = `rotate(${(y * 0.06) % 360}deg)`;
+  document.documentElement.style.setProperty("--bar", clamp((y - vh * 0.6) / (vh * 0.4), 0, 1).toFixed(3));
+  const contact = $(".s-contact"); if (contact) contact.classList.toggle("in", y + vh * 0.75 > contact.offsetTop);
+  if (gl) { gl.state.stage = stageAt(y); const e = $("#email"); if (e) gl.state.rect = e.getBoundingClientRect(); }
+}
+
+// ---------- preloader ----------
+function runPreloader(gl, lenis) {
+  const pre = $("#preloader"), count = $("#count"); let seen = false;
+  try { seen = sessionStorage.getItem("sp-preloaded") === "1"; } catch { /* storage blocked */ }
+  const finish = () => { document.body.classList.remove("is-loading"); document.body.classList.add("is-ready"); pre.remove(); lenis?.start(); };
+  if (reducedMotion) { if (gl) { gl.state.formation = 1; gl.state.ring = 0; } finish(); return; }
+  const form = (dur) => { if (!gl) return; const t0 = performance.now(); const step = (t) => { const k = Math.min((t - t0) / dur, 1); gl.state.formation = k; if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
+  if (seen || !gl) { if (gl) gl.state.ring = 0; form(2200); setTimeout(finish, 300); return; }
+  lenis?.stop(); scrollTo(0, 0); gl.state.ring = 1; gl.state.formation = 1;
+  const t0 = performance.now(), D = 2300;
+  const tick = (t) => { const k = Math.min((t - t0) / D, 1), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; count.textContent = `${Math.round(e * 100)}%`;
+    if (k < 1) return requestAnimationFrame(tick);
+    pre.classList.add("out"); const r0 = performance.now();
+    const release = (t2) => { const q = Math.min((t2 - r0) / 1800, 1); gl.state.ring = 1 - (q < 0.5 ? 4 * q * q * q : 1 - Math.pow(-2 * q + 2, 3) / 2); if (q < 1) requestAnimationFrame(release); else gl.state.ring = 0; };
+    requestAnimationFrame(release); setTimeout(finish, 900); try { sessionStorage.setItem("sp-preloaded", "1"); } catch { /* ignore */ } };
+  requestAnimationFrame(tick);
+}
+
+// ---------- cursor ----------
+function cursor() {
+  const c = $("#cursor"); if (coarse || reducedMotion) { c.remove(); return; }
+  let x = -100, y = -100, cx = x, cy = y;
+  addEventListener("pointermove", (e) => { x = e.clientX; y = e.clientY; c.classList.toggle("on-link", !!e.target.closest?.("a,button")); }, { passive: true });
+  const loop = () => { cx += (x - cx) * 0.2; cy += (y - cy) * 0.2; c.style.transform = `translate3d(${cx}px,${cy}px,0)`; requestAnimationFrame(loop); }; loop();
+}
+
+async function boot() {
+  let content;
+  try { content = await (await fetch("/api/content", { cache: "no-cache" })).json(); }
+  catch { $("#main").replaceChildren(h("p", { class: "noscript" }, "Could not load the page content. Please refresh.")); document.body.classList.remove("is-loading"); return; }
+  document.title = content.site.title;
+  render(content);
+  let portrait = null;
+  if (content.portrait?.enabled) portrait = await fetch("/api/portrait", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  await document.fonts?.load?.("800 100px Inter").catch(() => {});
+  const gl = createParticles($("#gl"), { content, portraitData: portrait, reducedMotion, coarse });
+  if (!gl) document.body.classList.add("no-webgl");
+  const lenis = reducedMotion ? null : new Lenis({ lerp: 0.09, wheelMultiplier: 0.9, autoRaf: false });
+  window.__lenis = lenis;
+  measure();
+  let lastY = scrollY, lastT = performance.now();
+  const raf = (t) => { lenis?.raf(t); const y = lenis ? lenis.animatedScroll : scrollY; if (gl) { gl.state.velocity = ((y - lastY) / Math.max(t - lastT, 1)) * 1000; } lastY = y; lastT = t; update(y, gl); requestAnimationFrame(raf); };
+  requestAnimationFrame(raf);
+  addEventListener("resize", () => { measure(); lenis?.resize(); });
+  new ResizeObserver(() => measure()).observe($("#main"));
+  for (const a of $$('a[href^="#"]')) a.addEventListener("click", (e) => { const t = $(a.getAttribute("href")); if (!t) return; e.preventDefault(); lenis ? lenis.scrollTo(t, { duration: 2 }) : t.scrollIntoView(); });
+  cursor();
+  runPreloader(gl, lenis);
+}
+boot();

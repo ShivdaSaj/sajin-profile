@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "site": {
+    "title": "Sajin Shivdas | Cybersecurity Expert",
+    "description": "Sajin Shivdas, cybersecurity expert based in Abu Dhabi: security architecture, governance, audit and digital forensics.",
+    "theme": {
+      "bg": "#1d1c20",
+      "fg": "#eef0ee",
+      "muted": "#8d8f95",
+      "particle": "#ffffff",
+      "accent": "#7fd6c2"
+    }
+  },
+  "hero": {
+    "firstName": "Sajin",
+    "lastName": "Shivdas",
+    "role": "Cybersecurity Expert",
+    "scrollHint": "Scroll to explore"
+  },
+  "statement": {
+    "text": "Innovation and open-source project contribution in cybersecurity and forensics."
+  },
+  "globe": {
+    "ringTop": "Available everywhere",
+    "ringBottom": "Working globally"
+  },
+  "location": {
+    "label": "From India · Working in the UAE"
+  },
+  "approach": {
+    "text": "I don't stop at what the checklist asks for. I bring an investigator's curiosity to every system, digging into how things really behave, and push for the controls, tooling and research that genuinely raise the bar."
+  },
+  "works": {
+    "kicker": "Some selected works",
+    "closingLine": "And still building plenty more.",
+    "items": [
+      {
+        "title": "Infosec Tools",
+        "year": "2026",
+        "role": "Builder",
+        "description": "700 security and engineering tools in four toolkits, rebuilt natively after static analysis with REA.",
+        "url": "https://infosectools.sajinshivdas.online",
+        "tags": [
+          "Web",
+          "Tooling"
+        ]
+      },
+      {
+        "title": "Forensics Atlas",
+        "year": "2026",
+        "role": "Curator",
+        "description": "A visual, searchable atlas of digital forensics and incident response tools and resources.",
+        "url": "https://forensics.sajinshivdas.online",
+        "tags": [
+          "DFIR",
+          "Research"
+        ]
+      },
+      {
+        "title": "Cybersecurity Blog",
+        "year": "2024",
+        "role": "Author",
+        "description": "Guides, checklists and news on threat intelligence, VAPT, mobile and application security.",
+        "url": "https://sajinshivdas.com/cybersecurity/",
+        "tags": [
+          "Writing"
+        ]
+      },
+      {
+        "title": "CISSP Study Hub",
+        "year": "2024",
+        "role": "Author",
+        "description": "Mind maps, flashcards, practice sets and mock assessments across all eight CISSP domains.",
+        "url": "https://sajinshivdas.com/sajins-mind-maps/",
+        "tags": [
+          "Education"
+        ]
+      },
+      {
+        "title": "Computer Forensics",
+        "year": "2024",
+        "role": "Author",
+        "description": "The history, process and types of digital forensics, with free infographics.",
+        "url": "https://sajinshivdas.com/portfolio/sajinforensics/",
+        "tags": [
+          "Forensics"
+        ]
+      }
+    ]
+  },
+  "contact": {
+    "kicker": "Get in touch",
+    "email": "info@sajinshivdas.com",
+    "note": "or reach out on",
+    "links": [
+      {
+        "label": "LinkedIn",
+        "url": "https://www.linkedin.com/in/sajin-shivdas"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/ShivdaSaj"
+      },
+      {
+        "label": "X",
+        "url": "https://twitter.com/sajin1424"
+      }
+    ]
+  },
+  "footer": {
+    "text": "Sajin Shivdas",
+    "tip": "hey there!"
+  },
+  "portrait": {
+    "enabled": false,
+    "updatedAt": null
+  }
+}

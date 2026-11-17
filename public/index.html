@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" style="{{THEME_STYLE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <meta name="theme-color" content="{{BG}}">
+  <meta property="og:title" content="{{TITLE}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:type" content="profile">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/vendor/lenis.css">
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body class="is-loading">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="gl" id="gl" aria-hidden="true"></div>
+  <div class="preloader" id="preloader" aria-hidden="true"><span class="count" id="count">0%</span></div>
+  <header class="bar">
+    <a class="bar-name" href="#top" id="barName"></a>
+    <a class="bar-link" href="#contact" id="barContact">Get in touch</a>
+  </header>
+  <main id="main" tabindex="-1"></main>
+  <div class="cursor" id="cursor" aria-hidden="true"></div>
+  <noscript><p class="noscript">This page needs JavaScript for its animations, but the content is also available at <a href="/api/content">/api/content</a>.</p></noscript>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# Hostinger Docker Manager project "sajin-profile", behind the VPS's existing Traefik
+# (entrypoint websecure, certificate resolver letsencrypt). Uses the stock node:24-alpine image;
+# at start-up Node downloads this repository at the commit in APP_REF over verified HTTPS.
+# Project environment variables: ADMIN_PASSWORD (required) and APP_REF (commit to run).
+services:
+  sajin-profile:
+    image: node:24-alpine
+    restart: unless-stopped
+    user: node
+    working_dir: /app
+    environment:
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      - APP_REF=${APP_REF:-main}
+      - DATA_DIR=/home/node/data
+      - NODE_ENV=production
+      - PORT=8080
+    command:
+      - sh
+      - -c
+      - >-
+        mkdir -p /tmp/src &&
+        node -e 'fetch("https://codeload.github.com/ShivdaSaj/sajin-profile/tar.gz/" + process.env.APP_REF).then(async (r) => { if (!r.ok) throw new Error("download failed: HTTP " + r.status); process.stdout.write(Buffer.from(await r.arrayBuffer())); })' |
+        tar -xz -C /tmp/src &&
+        cp -r /tmp/src/*/. /app/ &&
+        rm -rf /tmp/src &&
+        exec node server.mjs
+    volumes:
+      - sajin-profile-data:/home/node
+    tmpfs:
+      - /app:uid=1000,gid=1000,mode=0755
+      - /tmp:uid=1000,gid=1000
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.sajinprofile.rule=Host(`me.sajinshivdas.online`)
+      - traefik.http.routers.sajinprofile.entrypoints=websecure
+      - traefik.http.routers.sajinprofile.tls=true
+      - traefik.http.routers.sajinprofile.tls.certresolver=letsencrypt
+      - traefik.http.services.sajinprofile.loadbalancer.server.port=8080
+
+volumes:
+  sajin-profile-data:
