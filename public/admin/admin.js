@@ -78,7 +78,7 @@ function draw() {
 
 // Portrait: the image is converted to points in the browser; only the points are uploaded.
 function drawPortrait() {
-  const opts = { count: 22000, invert: false, threshold: 0.12, gamma: 1.4 }; let img = null, pts = null;
+  const opts = { count: 22000, removeBackground: true, tolerance: 0.045, gamma: 1.2 }; let img = null, pts = null;
   const cv = h("canvas", { width: 420, height: 420, class: "preview", "aria-label": "Particle preview" });
   const info = h("p", { class: "intro" }, c.portrait.enabled ? `A portrait is active (${c.portrait.points?.toLocaleString() || "?"} points, updated ${String(c.portrait.updatedAt || "").slice(0, 10)}).` : "No portrait yet: the hero shows a generic silhouette.");
   const paint = () => { const x = cv.getContext("2d"); x.fillStyle = c.site.theme.bg; x.fillRect(0, 0, cv.width, cv.height); if (!pts) return;
@@ -88,10 +88,10 @@ function drawPortrait() {
   const file = h("input", { type: "file", accept: "image/*", onchange: (e) => { const f = e.target.files[0]; if (!f) return; const u = URL.createObjectURL(f); img = new Image(); img.onload = () => { regen(); URL.revokeObjectURL(u); }; img.src = u; } });
   const range = (key, label, min, max, step) => field(`${label}`, h("input", { type: "range", min, max, step, value: opts[key], oninput: (e) => { opts[key] = +e.target.value; regen(); } }));
   paint();
-  return panel("Portrait particles", "Upload a photo of yourself, ideally a head-and-shoulders shot on a dark, plain background. It is turned into particles in your browser; only the points are stored. Light areas get more particles.",
+  return panel("Portrait particles", "Upload a head-and-shoulders photo on a plain background (white or dark both work). It is turned into particles in your browser and only the points are stored. Raise the background tolerance if bits of background remain; lower it if your shirt or face start to disappear.",
     info, h("div", { class: "portrait" }, cv, h("div", { class: "pcontrols" }, field("Photo", file), stat,
-      range("threshold", "Background cut-off", 0, 0.6, 0.01), range("gamma", "Contrast", 0.6, 3, 0.1), range("count", "Particles", 6000, 30000, 1000),
-      h("label", { class: "check" }, h("input", { type: "checkbox", onchange: (e) => { opts.invert = e.target.checked; regen(); } }), "Invert (for a light background)"),
+      range("tolerance", "Background tolerance", 0.01, 0.3, 0.005), range("gamma", "Contrast", 0.5, 3, 0.1), range("count", "Particles", 6000, 30000, 1000),
+      h("label", { class: "check" }, h("input", { type: "checkbox", checked: true, onchange: (e) => { opts.removeBackground = e.target.checked; regen(); } }), "Remove background (colour detected from the photo's edges)"),
       h("div", { class: "actions" }, h("button", { type: "button", class: "btn primary", onclick: async () => { if (!pts) return toast("Choose a photo first", true); if (pts.n < 500) return toast("Too few points: lower the cut-off", true);
           try { const r = await api("/api/admin/portrait", { method: "PUT", body: JSON.stringify(pts) }); c.portrait = { enabled: true, points: r.points, updatedAt: new Date().toISOString() }; toast("Portrait saved. It's live now."); draw(); } catch (e) { toast(e.message, true); } } }, "Use this portrait"),
         c.portrait.enabled ? h("button", { type: "button", class: "btn", onclick: async () => { if (!confirm("Remove the portrait and go back to the silhouette?")) return; try { await api("/api/admin/portrait", { method: "DELETE" }); c.portrait = { enabled: false }; toast("Portrait removed"); draw(); } catch (e) { toast(e.message, true); } } }, "Remove portrait") : null))));

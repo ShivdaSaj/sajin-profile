@@ -112,18 +112,36 @@ export function portrait(data, n, r = rng(29)) {
   return { positions: out, luma };
 }
 
-// Turn an image into a portrait point cloud (used by the admin panel). Brighter pixels attract more points.
-export function imageToPoints(img, { count = 22000, invert = false, threshold = 0.12, gamma = 1.4, depth = 0.25 } = {}, r = rng(31)) {
-  const H = 260, W = Math.max(1, Math.round((img.naturalWidth || img.width) * (H / (img.naturalHeight || img.height))));
+// Turn a photo into a portrait point cloud (used by the admin panel).
+// The background colour is estimated from the image border and removed (works for white studio
+// backgrounds as well as dark ones); brighter parts of the subject attract more, brighter particles,
+// so skin and clothes read as lit while hair and eyes stay darker. The subject is framed so its
+// bounding box is two units tall and centred, with the shoulders at the bottom edge.
+export function imageToPoints(img, { count = 22000, removeBackground = true, tolerance = 0.045, gamma = 1.2, depth = 0.25 } = {}, r = rng(31)) {
+  const H = 320, W = Math.max(1, Math.round((img.naturalWidth || img.width) * (H / (img.naturalHeight || img.height))));
   const c = document.createElement("canvas"); c.width = W; c.height = H; const ctx = c.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, W, H); const px = ctx.getImageData(0, 0, W, H).data;
-  const lum = new Float32Array(W * H);
-  for (let i = 0; i < W * H; i++) { const a = px[4 * i + 3] / 255; let v = (0.2126 * px[4 * i] + 0.7152 * px[4 * i + 1] + 0.0722 * px[4 * i + 2]) / 255; if (invert) v = 1 - v; lum[i] = v * a; }
+  // background colour: average of the outer border (top and sides; the bottom is usually the subject's shoulders)
+  let br = 0, bg = 0, bb = 0, bn = 0; const edge = Math.max(2, Math.round(W * 0.03));
+  for (let y = 0; y < H * 0.85; y++) for (let x = 0; x < W; x++) if (x < edge || x >= W - edge || y < edge) { const i = 4 * (y * W + x); br += px[i]; bg += px[i + 1]; bb += px[i + 2]; bn++; }
+  br /= bn; bg /= bn; bb /= bn;
+  const lum = new Float32Array(W * H), mask = new Float32Array(W * H);
+  let minX = W, maxX = 0, minY = H, maxY = 0;
+  for (let i = 0; i < W * H; i++) {
+    const R = px[4 * i], G = px[4 * i + 1], B = px[4 * i + 2], a = px[4 * i + 3] / 255;
+    lum[i] = (0.2126 * R + 0.7152 * G + 0.0722 * B) / 255;
+    const dist = Math.sqrt((R - br) ** 2 + (G - bg) ** 2 + (B - bb) ** 2) / 441.7;
+    mask[i] = a * (removeBackground ? Math.min(1, Math.max(0, (dist - tolerance) / 0.05)) : 1);
+    if (mask[i] > 0.5) { const x = i % W, y = (i / W) | 0; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+  }
+  if (maxX <= minX || maxY <= minY) { minX = 0; maxX = W - 1; minY = 0; maxY = H - 1; }
+  const s = 2 / (maxY - minY + 1), cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const p = [], l = []; let guard = 0;
-  while (l.length < count && guard++ < count * 60) {
-    const x = Math.floor(r() * W), y = Math.floor(r() * H), v = lum[y * W + x];
-    if (v < threshold || r() > Math.pow(v, gamma)) continue;
-    const s = 2 / H; p.push(Math.round((x - W / 2 + r() - 0.5) * s * 1000), Math.round(-(y - H / 2 + r() - 0.5) * s * 1000), Math.round((v - 0.5) * depth * 1000)); l.push(Math.round(v * 255));
+  while (l.length < count && guard++ < count * 80) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * H), k = y * W + x, m = mask[k], v = lum[k];
+    if (m <= 0 || r() > m * (0.16 + 0.84 * Math.pow(v, gamma))) continue;
+    p.push(Math.round((x - cx + r() - 0.5) * s * 1000), Math.round(-(y - cy + r() - 0.5) * s * 1000), Math.round((v - 0.5) * depth * 1000));
+    l.push(Math.round((0.2 + 0.8 * v) * 255));
   }
   return { v: 1, n: l.length, p, l };
 }
