@@ -52,6 +52,19 @@ test("admin API: auth, CSRF, save, portrait, backups", async () => {
     assert.equal((await (await fetch(B + "/api/portrait")).json()).n, n);
     assert.ok((await (await fetch(B + "/api/content")).json()).portrait.enabled);
     const backups = await (await fetch(B + "/api/admin/backups", { headers: H })).json(); assert.ok(backups.length >= 2);
+    // image uploads: real PNG accepted and served; text disguised as an image refused
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const up = await (await fetch(B + "/api/admin/media", { method: "POST", headers: H, body: JSON.stringify({ data: `data:image/png;base64,${png.toString("base64")}` }) })).json();
+    assert.match(up.url, /^\/media\/[0-9a-f]{20}\.png$/);
+    const got = await fetch(B + up.url); assert.equal(got.status, 200); assert.equal(got.headers.get("content-type"), "image/png");
+    assert.equal((await fetch(B + "/api/admin/media", { method: "POST", headers: H, body: JSON.stringify({ data: "data:image/png;base64," + Buffer.from("<svg onload=alert(1)>").toString("base64") }) })).status, 400);
+    assert.equal((await fetch(B + "/media/..%2Fcontent.json")).status, 404);
+    // a work can reference the upload; other paths are dropped
+    const c2 = await (await fetch(B + "/api/admin/content", { headers: H })).json();
+    c2.works.items[0].thumb = up.url; c2.works.items[1].thumb = "https://evil.example/x.png";
+    await fetch(B + "/api/admin/content", { method: "PUT", headers: H, body: JSON.stringify(c2) });
+    const pub = await (await fetch(B + "/api/content")).json(); assert.equal(pub.works.items[0].thumb, up.url); assert.equal(pub.works.items[1].thumb, "");
+    assert.equal(pub.location.fromLabel, "From India"); assert.equal(pub.location.basedLabel, "Based in the UAE");
     const html = await (await fetch(B + "/")).text(); assert.match(html, /<title>Sajin Shivdas \| Cybersecurity Expert<\/title>/); assert.match(html, /--bg:#/);
     assert.equal((await fetch(B + "/../server.mjs")).status === 200, false);
   } finally { p.kill(); fs.rmSync(dir, { recursive: true }); }

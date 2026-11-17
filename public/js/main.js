@@ -30,29 +30,32 @@ function render(c) {
       h("div", { class: "sticky" },
         h("h1", { class: "hero-title" }, h("span", { class: "hero-name", "aria-label": name }, chars(name)), h("span", { class: "hero-role", "aria-label": c.hero.role }, chars(c.hero.role))),
         h("p", { class: "hint" }, h("span", { class: "hint-line" }), c.hero.scrollHint))),
-    h("section", { class: "s s-statement", "data-stage": "1", "data-len": "1.7" },
+    h("section", { class: "s s-statement", "data-stage": "1", "data-len": "1.3" },
       h("div", { class: "sticky" }, h("p", { class: "statement reveal-words" }, words(c.statement.text)))),
-    h("section", { class: "s s-globe", "data-stage": "2", "data-len": "1.6" },
+    h("section", { class: "s s-globe", "data-stage": "2", "data-len": "1.25" },
       h("div", { class: "sticky" },
         h("div", { class: "ring", "aria-hidden": "true" }, svg("svg", { viewBox: "0 0 400 400" },
           svg("defs", {}, svg("path", { id: "ringPath", d: "M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" })),
           svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "57%" }, c.globe.ringTop)),
           svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "7%" }, c.globe.ringBottom)))),
         h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`))),
-    h("section", { class: "s s-location", "data-stage": "3", "data-len": "1.5" },
-      h("div", { class: "sticky" }, h("p", { class: "label loc-label" }, c.location.label))),
-    h("section", { class: "s s-approach", "data-stage": "4", "data-len": "1.6" },
+    h("section", { class: "s s-location", "data-stage": "3", "data-len": "1.3" },
+      h("div", { class: "sticky" },
+        h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), c.location.fromLabel),
+        h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), c.location.basedLabel))),
+    h("section", { class: "s s-approach", "data-stage": "4", "data-len": "1.25" },
       h("div", { class: "sticky" }, h("p", { class: "statement small approach reveal-words" }, words(c.approach.text)))),
     h("section", { class: "s s-works", "data-stage": "5", id: "work" },
       h("div", { class: "sticky" },
         h("div", { class: "works-head" }, h("p", { class: "kicker" }, c.works.kicker), h("p", { class: "works-count" }, h("span", { id: "workIdx" }, "01"), ` / ${pad(works.length)}`)),
         h("ol", { class: "track", id: "track" }, works.map((w, i) => { const href = safeUrl(w.url);
           return h("li", { class: "work" }, h(href ? "a" : "div", { class: "work-link", href, target: href && !href.startsWith("mailto:") ? "_blank" : null, rel: href ? "noopener" : null },
+            h("span", { class: "work-thumb" }, w.thumb ? h("img", { src: w.thumb, alt: "", loading: "lazy", decoding: "async", width: "800", height: "500" }) : h("span", { class: "work-thumb-empty" }, w.title.slice(0, 1))),
             h("span", { class: "work-idx" }, pad(i + 1)), h("span", { class: "work-title" }, w.title),
             h("span", { class: "work-meta" }, [w.role, w.year].filter(Boolean).join(" · ")),
             w.description ? h("span", { class: "work-desc" }, w.description) : null,
             w.tags.length ? h("span", { class: "work-tags" }, w.tags.map((t) => h("i", {}, t))) : null)); })))),
-    h("section", { class: "s s-closing", "data-stage": "6", "data-len": "1.4" },
+    h("section", { class: "s s-closing", "data-stage": "6", "data-len": "1.15" },
       h("div", { class: "sticky" }, h("p", { class: "statement closing reveal-words" }, words(c.works.closingLine)))),
     h("section", { class: "s s-contact", "data-stage": "7", id: "contact" },
       h("div", { class: "contact" }, h("p", { class: "kicker" }, c.contact.kicker),
@@ -68,7 +71,7 @@ let sections = [], anchors = [], vh = innerHeight;
 function measure() {
   vh = innerHeight;
   const track = $("#track"), works = $(".s-works");
-  if (track && works) { const extra = Math.max(0, track.scrollWidth - innerWidth); works.style.height = `${Math.round(extra + vh * 1.6)}px`; works.dataset.extra = extra; }
+  if (track && works) { const extra = Math.max(0, track.scrollWidth - innerWidth); works.style.height = `${Math.round(extra + vh * 1.35)}px`; works.dataset.extra = extra; }
   sections = $$("section.s").map((el) => { const len = parseFloat(el.dataset.len || "0"); if (len && !el.classList.contains("s-works")) el.style.height = `${len * 100}vh`;
     const top = el.offsetTop, height = el.offsetHeight; return { el, top, height, stage: +el.dataset.stage }; });
   anchors = [];
@@ -89,7 +92,7 @@ function update(y, gl) {
     const prog = clamp((y - s.top) / Math.max(s.height - vh, 1), 0, 1);
     s.el.style.setProperty("--prog", prog.toFixed(4));
     if (s.el.classList.contains("s-works")) {
-      const extra = +s.el.dataset.extra || 0; const t = clamp((y - s.top - vh * 0.3) / Math.max(s.height - vh * 1.6, 1), 0, 1);
+      const extra = +s.el.dataset.extra || 0; const t = clamp((y - s.top - vh * 0.18) / Math.max(s.height - vh * 1.35, 1), 0, 1);
       $("#track").style.transform = `translate3d(${(-extra * t).toFixed(1)}px,0,0)`;
       const items = $$(".work"); const idx = clamp(Math.round(t * (items.length - 1)), 0, items.length - 1);
       $("#workIdx").textContent = String(idx + 1).padStart(2, "0");
@@ -100,7 +103,12 @@ function update(y, gl) {
   const ring = $(".ring svg"); if (ring) ring.style.transform = `rotate(${(y * 0.06) % 360}deg)`;
   document.documentElement.style.setProperty("--bar", clamp((y - vh * 0.6) / (vh * 0.4), 0, 1).toFixed(3));
   const contact = $(".s-contact"); if (contact) contact.classList.toggle("in", y + vh * 0.75 > contact.offsetTop);
-  if (gl) { gl.state.stage = stageAt(y); const e = $("#email"); if (e) gl.state.rect = e.getBoundingClientRect(); }
+  if (gl) { gl.state.stage = stageAt(y); const e = $("#email"); if (e) gl.state.rect = e.getBoundingClientRect();
+    // pin the map labels to India and the UAE as the map moves
+    const [ind, uae] = gl.state.anchors || []; const lf = $("#mapFrom"), lb = $("#mapBased");
+    const off = lf ? lf.parentElement.getBoundingClientRect().top : 0; // anchors are viewport px; labels live in the sticky box
+    if (ind && lf) lf.style.transform = `translate3d(${ind.x.toFixed(1)}px,${(ind.y - off).toFixed(1)}px,0)`;
+    if (uae && lb) lb.style.transform = `translate3d(${uae.x.toFixed(1)}px,${(uae.y - off).toFixed(1)}px,0)`; }
 }
 
 // ---------- preloader ----------
@@ -140,7 +148,7 @@ async function boot() {
   await document.fonts?.load?.("800 100px Inter").catch(() => {});
   const gl = createParticles($("#gl"), { content, portraitData: portrait, reducedMotion, coarse });
   if (!gl) document.body.classList.add("no-webgl");
-  const lenis = reducedMotion ? null : new Lenis({ lerp: 0.09, wheelMultiplier: 0.9, autoRaf: false });
+  const lenis = reducedMotion ? null : new Lenis({ lerp: 0.13, wheelMultiplier: 1, autoRaf: false });
   window.__lenis = lenis;
   measure();
   let lastY = scrollY, lastT = performance.now();

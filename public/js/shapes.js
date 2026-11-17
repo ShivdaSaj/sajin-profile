@@ -52,7 +52,7 @@ export function scatter(n, r = rng(19)) {
 }
 
 // Sample n points from the opaque pixels of a canvas drawing, scaled so the drawing is `height` units tall.
-export function sampleCanvas(draw, n, { w = 900, h = 300, height = 1.2, depth = 0.08, r = rng(23) } = {}) {
+export function sampleCanvas(draw, n, { w = 900, h = 300, height = 1.2, depth = 0.08, r = rng(23), anchors = [] } = {}) {
   const c = document.createElement("canvas"); c.width = w; c.height = h; const ctx = c.getContext("2d", { willReadFrequently: true });
   draw(ctx, w, h);
   const px = ctx.getImageData(0, 0, w, h).data, hits = [];
@@ -63,6 +63,7 @@ export function sampleCanvas(draw, n, { w = 900, h = 300, height = 1.2, depth = 
   const s = height / Math.max(maxY - minY, 1), cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   for (let i = 0; i < n; i++) { const k = 2 * Math.floor(r() * (hits.length / 2));
     out[3 * i] = (hits[k] - cx + (r() - 0.5) * 2) * s; out[3 * i + 1] = -(hits[k + 1] - cy + (r() - 0.5) * 2) * s; out[3 * i + 2] = (r() - 0.5) * depth; }
+  out.anchors = anchors.map(([x, y]) => [(x - cx) * s, -(y - cy) * s, 0]); // canvas points mapped into shape space
   return out;
 }
 
@@ -101,7 +102,7 @@ export function indiaUae(n) {
     const a = P([54.4, 24.4]), b = P([76.3, 10.0]), c = [(a[0] + b[0]) / 2, Math.min(a[1], b[1]) + 120];
     for (let t = 0.04; t < 0.97; t += 0.025) { const x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1];
       ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); }
-  }, n, { w: 640, h: 400, height: 1.75, depth: 0.04 });
+  }, n, { w: 640, h: 400, height: 1.75, depth: 0.04, anchors: [P([79.5, 22.5]), P([54.3, 24.0])] }); // anchors: India, UAE
 }
 
 // Decode a portrait uploaded through the admin panel ({n, p, l}) and resample it to n points.

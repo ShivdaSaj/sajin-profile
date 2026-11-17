@@ -15,7 +15,7 @@ const vertexShader = /* glsl */ `
 
   void main() {
     float i = floor(uStage);
-    float f = smoothstep(0.0, 1.0, clamp((fract(uStage) - aRand.x * 0.3) / 0.7, 0.0, 1.0)); // staggered morph
+    float f = smoothstep(0.0, 1.0, clamp((fract(uStage) - aRand.x * 0.16) / 0.84, 0.0, 1.0)); // lightly staggered morph
     vec3 frameP = vec3(mix(uRect.x, uRect.y, aFrame.x), mix(uRect.w, uRect.z, aFrame.y), aFrame.z * 0.03);
     vec3 helixP = rotX(aHelix, uHelixSpin);
     vec3 p = position * (weight(0.0, i, f) + weight(1.0, i, f))
@@ -24,7 +24,7 @@ const vertexShader = /* glsl */ `
 
     // turbulence while travelling between shapes and while scrolling fast
     float travel = sin(3.14159 * f) * step(0.001, fract(uStage));
-    float amp = travel * 0.35 + uTurb * 0.12;
+    float amp = travel * 0.16 + uTurb * 0.06;
     float t = uTime * 0.6 + aRand.z * 6.2831;
     p += amp * vec3(sin(t + p.y * 3.1), cos(t * 1.3 + p.x * 2.7), sin(t * 0.7 + p.z * 4.0));
     p += 0.006 * vec3(sin(uTime * 1.7 + aRand.z * 40.0), cos(uTime * 1.3 + aRand.z * 31.0), 0.0); // idle shimmer
@@ -60,7 +60,7 @@ const POSES = [
   { x: 0, y: -0.13, s: 1.05, rx: 0, ry: 0, rz: 0 },       // 0 hero: portrait cropped at the shoulders
   { x: 0, y: -0.13, s: 1.1, rx: 0, ry: -0.6, rz: 0 },     // 1 statement: portrait turns away
   { x: 0, y: 0, s: 0.82, rx: 0.2, ry: 0, rz: -0.15 },     // 2 globe
-  { x: 0, y: 0.02, s: 1.0, rx: 0, ry: 0, rz: 0 },         // 3 India / UAE map
+  { x: 0, y: 0.02, s: 1.0, rx: 0, ry: 0, rz: 0, ms: 0.42 }, // 3 India / UAE map (ms: smaller on phones so both countries fit)
   { x: 0, y: 0.06, s: 1.0, rx: 0, ry: 0.25, rz: 0.38 },   // 4 how I work: diagonal ribbon
   { x: 0, y: -0.04, s: 1.05, rx: 0, ry: 0.4, rz: 0.22 },  // 5 selected works
   { x: 0.16, y: 0, s: 0.95, rx: -0.5, ry: 0, rz: 0 },     // 6 closing spiral
@@ -82,7 +82,8 @@ export function createParticles(container, { content, portraitData, reducedMotio
   for (let i = 0; i < n; i++) { rand[4 * i] = r(); rand[4 * i + 1] = Math.pow(r(), 3) * 1.4 + 0.35 * hero.luma[i]; rand[4 * i + 2] = r(); rand[4 * i + 3] = hero.luma[i]; }
   g.setAttribute("position", new THREE.BufferAttribute(hero.positions, 3));
   g.setAttribute("aGlobe", new THREE.BufferAttribute(S.globe(n), 3));
-  g.setAttribute("aMap", new THREE.BufferAttribute(S.indiaUae(n), 3));
+  const mapShape = S.indiaUae(n); g.setAttribute("aMap", new THREE.BufferAttribute(mapShape, 3));
+  const mapAnchors = (mapShape.anchors || []).map((a) => new THREE.Vector3(...a)), tmp = new THREE.Vector3();
   g.setAttribute("aHelix", new THREE.BufferAttribute(S.helix(n), 3));
   g.setAttribute("aSpiral", new THREE.BufferAttribute(S.spiral(n), 3));
   g.setAttribute("aFrame", new THREE.BufferAttribute(S.frame(n), 3));
@@ -115,19 +116,22 @@ export function createParticles(container, { content, portraitData, reducedMotio
     document.addEventListener("pointerleave", () => (present = 0));
   }
 
-  const state = { stage: 0, velocity: 0, ring: 0, formation: reducedMotion ? 1 : 0, rect: null, mobile: W < 760 };
+  const state = { stage: 0, velocity: 0, ring: 0, formation: reducedMotion ? 1 : 0, rect: null, mobile: W < 760, anchors: [] };
+  let shown = 0; // the stage actually drawn eases towards the scroll stage, so fast scrolls stay smooth
   const lerp = THREE.MathUtils.lerp;
   let last = performance.now(), spin = 0, running = true;
   function frame(now) {
     if (!running) return;
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
     if (!reducedMotion) u.uTime.value += dt;
-    const s = state.stage; u.uStage.value = s; u.uRing.value = state.ring; u.uFormation.value = state.formation;
+    shown = reducedMotion ? state.stage : shown + (state.stage - shown) * (1 - Math.exp(-dt / 0.11));
+    if (Math.abs(state.stage - shown) < 1e-4) shown = state.stage;
+    const s = shown; u.uStage.value = s; u.uRing.value = state.ring; u.uFormation.value = state.formation;
     u.uTurb.value += (Math.min(Math.abs(state.velocity) / 2400, 1) - u.uTurb.value) * (1 - Math.exp(-dt / 0.15));
     // pose: blend the two neighbouring stage poses
     const i = Math.min(Math.floor(s), POSES.length - 1), f = THREE.MathUtils.smoothstep(s - i, 0, 1), a = POSES[i], b = POSES[Math.min(i + 1, POSES.length - 1)];
     const mob = W < 760, k = (key) => lerp(a[key], b[key], f);
-    const sc = k("s") * (mob ? 0.62 : 1) * Math.min(1, viewH / 2.3);
+    const sc = lerp(a.s * (mob ? a.ms ?? 0.62 : 1), b.s * (mob ? b.ms ?? 0.62 : 1), f) * Math.min(1, viewH / 2.3);
     group.scale.setScalar(sc);
     group.position.set(k("x") * viewW * (mob ? 0.15 : 1), k("y") * viewH - (mob && s < 1 ? 0.12 * viewH : 0), 0);
     // hero: turn towards the pointer and glow near it; globe spins; helix rolls
@@ -147,6 +151,8 @@ export function createParticles(container, { content, portraitData, reducedMotio
       u.uRect.value.set((toX(R.left - pad) - gp.x) / gs, (toX(R.right + pad) - gp.x) / gs, (toY(R.top - vpad) - gp.y) / gs, (toY(R.bottom + vpad) - gp.y) / gs);
     }
     renderer.render(scene, camera);
+    // screen positions (CSS px) of the map anchors, for the From/Based labels
+    state.anchors = mapAnchors.map((a) => { tmp.copy(a).applyMatrix4(group.matrixWorld).project(camera); return { x: (tmp.x * 0.5 + 0.5) * W, y: (0.5 - tmp.y * 0.5) * H }; });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

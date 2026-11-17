@@ -2,7 +2,7 @@
 :root { --bg: #1d1c20; --fg: #eef0ee; --muted: #8d8f95; --accent: #7fd6c2; --pad: clamp(18px, 4vw, 64px); --ease: cubic-bezier(.2, .8, .2, 1); color-scheme: dark; }
 * { box-sizing: border-box; }
 html { background: var(--bg); overflow-x: clip; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: hidden; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 body.is-loading { overflow: hidden; }
 a { color: inherit; text-decoration: none; }
 ::selection { background: var(--fg); color: var(--bg); }
@@ -40,7 +40,8 @@ main { position: relative; z-index: 1; }
 .word.on { opacity: 1; }
 
 /* hero: name left, role right, letters rise in after the preloader */
-.hero-title { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 24px; font-size: clamp(15px, 1.15vw, 19px); font-weight: 400; letter-spacing: -0.005em; }
+.hero-title { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 32px; font-size: clamp(26px, 3.1vw, 58px); font-weight: 500; letter-spacing: -0.035em; line-height: 1.02; }
+.hero-role { text-align: right; color: color-mix(in srgb, var(--fg) 82%, var(--muted)); }
 .hero-name, .hero-role { display: inline-block; overflow: hidden; padding: 2px 0; max-width: 100%; }
 .w { display: inline-block; white-space: nowrap; }
 .char, .echar { display: inline-block; white-space: pre; transform: translateY(110%); opacity: 0; transition: transform .9s var(--ease), opacity .9s var(--ease); transition-delay: calc(var(--i, 0) * 28ms + 150ms); }
@@ -61,7 +62,13 @@ main { position: relative; z-index: 1; }
 .ring text { fill: var(--fg); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 
 .s-location .sticky { justify-items: center; }
-.loc-label { color: var(--fg); letter-spacing: .1em; text-shadow: 0 0 12px var(--bg), 0 0 4px var(--bg); }
+/* map labels: positioned on India and the UAE by script; "translate" offsets them so the pin sits on the anchor */
+.s-location .sticky { padding: 0; }
+.map-label { position: absolute; left: 0; top: 0; margin: 0; display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--fg); text-shadow: 0 0 10px var(--bg), 0 0 3px var(--bg); will-change: transform; }
+.map-label.from { translate: -4px -50%; }
+.map-label.based { translate: calc(-100% + 4px) -50%; flex-direction: row-reverse; }
+.pin { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); animation: pin 2.4s ease-out infinite; flex: none; }
+@keyframes pin { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
 
 .s-approach .sticky { justify-items: end; }
 .approach { margin-right: 3vw; }
@@ -70,9 +77,13 @@ main { position: relative; z-index: 1; }
 .s-works .sticky { overflow: hidden; align-items: stretch; padding: 0; }
 .works-head { position: absolute; top: 90px; left: var(--pad); right: var(--pad); display: flex; justify-content: space-between; }
 .works-count { margin: 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.track { position: absolute; left: 0; bottom: 20vh; margin: 0; padding: 0 0 0 52vw; list-style: none; display: flex; gap: clamp(60px, 11vw, 200px); will-change: transform; }
-.work { flex: none; width: clamp(220px, 22vw, 340px); }
-.work-link { display: grid; gap: 4px; }
+.track { position: absolute; left: 0; bottom: 11vh; margin: 0; padding: 0 0 0 46vw; list-style: none; display: flex; align-items: flex-end; gap: clamp(48px, 7vw, 130px); will-change: transform; }
+.work { flex: none; width: clamp(240px, 23vw, 360px); }
+.work-link { display: grid; gap: 5px; }
+.work-thumb { display: block; aspect-ratio: 16 / 10; margin-bottom: 10px; border-radius: 10px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--fg) 14%, transparent); background: color-mix(in srgb, var(--fg) 5%, var(--bg)); box-shadow: 0 18px 40px -18px #000; }
+.work-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; filter: grayscale(.55) brightness(.78); transform: scale(1.001); transition: filter .5s var(--ease), transform .7s var(--ease); }
+.work-link:hover .work-thumb img, .work-link:focus-visible .work-thumb img { filter: none; transform: scale(1.05); }
+.work-thumb-empty { display: grid; place-items: center; height: 100%; font-size: 42px; color: var(--muted); }
 .work-idx { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .work-title { font-size: clamp(18px, 1.5vw, 24px); letter-spacing: -0.01em; }
 .work-meta { font-size: 12px; color: var(--muted); }
@@ -108,15 +119,18 @@ a.work-link:hover .work-title { text-decoration: underline; text-underline-offse
 @media (hover: hover) and (pointer: fine) { body, a, button { cursor: none; } }
 
 @media (max-width: 760px) {
-  .hero-title { flex-direction: column; justify-content: center; align-items: flex-start; gap: 6px; position: absolute; top: 96px; left: var(--pad); right: var(--pad); }
+  .hero-title { flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; position: absolute; top: 92px; left: var(--pad); right: var(--pad); font-size: clamp(30px, 9.5vw, 44px); }
+  .hero-role { text-align: left; font-size: .62em; }
   .email { font-size: clamp(18px, 6.4vw, 30px); }
   .s-statement .sticky, .s-approach .sticky, .s-closing .sticky { align-items: end; padding-bottom: 14vh; }
   .s-approach .sticky { justify-items: start; }
   .approach, .s-statement .statement, .closing { margin: 0; }
   .ring { width: min(48vh, 96vw); }
   .works-head { top: 80px; }
-  .track { bottom: 16vh; padding-left: 18vw; }
-  .work { width: 68vw; }
+  .track { bottom: 9vh; padding-left: 16vw; }
+  .work { width: 70vw; }
+  .map-label { font-size: 10.5px; }
+  .map-label.based { translate: -4px 80%; flex-direction: row; }
   .work-desc, .work-tags { opacity: 1; transform: none; }
   .foot { flex-direction: column; gap: 10px; }
 }

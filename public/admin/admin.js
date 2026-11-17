@@ -38,6 +38,23 @@ function listEditor(arr, make, render, label) {
   draw(); return box;
 }
 
+// Thumbnail: resized and re-encoded to an 800x500 JPEG in the browser, then uploaded.
+function thumbEditor(w) {
+  const box = h("div", { class: "thumb-edit" });
+  const draw = () => mount(box, w.thumb ? h("img", { src: w.thumb, alt: "", class: "thumb-prev" }) : h("div", { class: "thumb-prev empty" }, "No thumbnail"),
+    h("div", { class: "actions" }, h("label", { class: "btn sm" }, w.thumb ? "Replace…" : "Upload…", h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", hidden: true, onchange: async (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        try { const img = new Image(); const u = URL.createObjectURL(f); img.src = u; await img.decode(); URL.revokeObjectURL(u);
+          const cv = document.createElement("canvas"); cv.width = 800; cv.height = 500; const x = cv.getContext("2d");
+          const sc = Math.max(800 / img.naturalWidth, 500 / img.naturalHeight), dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+          x.drawImage(img, (800 - dw) / 2, 0, dw, dh); // cover, anchored to the top like a page screenshot
+          const r = await api("/api/admin/media", { method: "POST", body: JSON.stringify({ data: cv.toDataURL("image/jpeg", 0.84) }) });
+          w.thumb = r.url; markDirty(); draw(); toast("Thumbnail uploaded. Save to publish it.");
+        } catch (x) { toast(`Upload failed: ${x.message}`, true); } } })),
+      w.thumb ? h("button", { type: "button", class: "btn sm", onclick: () => { w.thumb = ""; markDirty(); draw(); } }, "Remove") : null));
+  draw(); return box;
+}
+
 // ---------- sections ----------
 const SECTIONS = [
   ["hero", "1 · Hero"], ["portrait", "Portrait particles"], ["statement", "2 · Statement"], ["globe", "3 · Globe"], ["location", "4 · Map"],
@@ -54,13 +71,15 @@ function draw() {
     portrait: drawPortrait,
     statement: () => panel("Statement", "Revealed word by word while the portrait turns away.", field("Text", text(c.statement, "text", { area: true, max: 600 }), null, true)),
     globe: () => panel("Globe", "Two captions ride a ring around the spinning globe.", grid(field("Top caption", text(c.globe, "ringTop", { max: 60 })), field("Bottom caption", text(c.globe, "ringBottom", { max: 60 })))),
-    location: () => panel("Map", "The particles draw India and the UAE with an arc between them. This label sits on the map.", field("Label", text(c.location, "label", { max: 80 }), null, true)),
+    location: () => panel("Map", "The particles draw India and the UAE with an arc between them. Each label is pinned to its country.",
+      grid(field("Label on India", text(c.location, "fromLabel", { max: 60 })), field("Label on the UAE", text(c.location, "basedLabel", { max: 60 })))),
     approach: () => panel("How I work", "Shown beside the diagonal particle ribbon, revealed word by word.", field("Text", text(c.approach, "text", { area: true, max: 600 }), null, true)),
     works: () => panel("Selected works", "These slide along the ribbon as visitors scroll. Hovering shows the description and tags.",
       grid(field("Heading", text(c.works, "kicker", { max: 60 })), field("Closing line (shown with the spiral)", text(c.works, "closingLine", { max: 140 }))),
       listEditor(c.works.items, () => ({ title: "New project", year: String(new Date().getFullYear()), role: "", description: "", url: "", tags: [] }),
         (w, redraw) => grid(field("Title", text(w, "title", { max: 80, on: () => {} })), field("Year", text(w, "year", { max: 12 })), field("Role", text(w, "role", { max: 60 })),
           field("Link", text(w, "url", { type: "url", max: 500, placeholder: "https://…" })),
+          field("Thumbnail", thumbEditor(w), "Shown above the title. 16:10 works best; images are resized to 800×500.", true),
           field("Description", text(w, "description", { area: true, rows: 3, max: 400 }), null, true),
           field("Tags (comma separated)", h("input", { type: "text", value: (w.tags || []).join(", "), oninput: (e) => { w.tags = e.target.value.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 6); markDirty(); } }), null, true)), "project")),
     contact: () => [panel("Contact", "The particles draw a frame around your email.",

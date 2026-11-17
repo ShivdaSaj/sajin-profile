@@ -8,9 +8,9 @@ Live at **https://me.sajinshivdas.online**. A single scroll story told by one We
 | 1 | Hero: name left, role right | portrait (your photo, or a silhouette until you upload one); turns towards the pointer and glows |
 | 2 | Statement, revealed word by word | portrait turns away |
 | 3 | Globe with two captions on a rotating ring | spinning sphere |
-| 4 | "From India · Working in the UAE" | map of India and the UAE with an arc between them |
+| 4 | "From India" and "Based in the UAE", each pinned to its country | map of India and the UAE with an arc between them |
 | 5 | How I work | diagonal two-strand ribbon |
-| 6 | Selected works sliding along the ribbon | ribbon keeps rolling |
+| 6 | Selected works with thumbnails, sliding along the ribbon | ribbon keeps rolling |
 | 7 | Closing line | spiral |
 | 8 | Contact: email, links, footer | a frame drawn around the email |
 
@@ -21,6 +21,7 @@ Smooth scrolling is [Lenis](https://github.com/darkroomengineering/lenis) and re
 `/admin` signs in with `ADMIN_PASSWORD`. You can edit every page (hero, statement, globe captions, map label, how I work, selected works, contact links, footer), the site title, description and colours, and:
 
 - **Portrait particles:** upload a head-and-shoulders photo. It's converted to particles in your browser, with sliders for background cut-off, contrast and particle count, and a live preview. Only the points are uploaded.
+- **Project thumbnails:** each project can have a thumbnail (uploads are resized to 800×500 in the browser and stored in the data volume). The five starting projects ship with screenshots of their sites.
 - **Backups:** every save keeps a backup (the latest 50). Restore any of them, export or import the content as JSON, or reset to the original text.
 
 Security: HttpOnly, Secure, SameSite=Strict session cookie; a CSRF header on every write; login rate limiting (5 failures lock an IP out for 15 minutes); links must be `https://`, `http://` or `mailto:`; strict Content Security Policy.

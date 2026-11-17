@@ -61,3 +61,6 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
   .portrait { grid-template-columns: 1fr; }
   .top .state { display: none; }
 }
+.thumb-edit { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.thumb-prev { width: 192px; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 8px; border: 1px solid var(--line); }
+.thumb-prev.empty { display: grid; place-items: center; font-size: 12px; color: var(--muted); background: var(--card); }

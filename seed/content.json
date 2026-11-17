@@ -25,7 +25,8 @@
     "ringBottom": "Working globally"
   },
   "location": {
-    "label": "From India · Working in the UAE"
+    "fromLabel": "From India",
+    "basedLabel": "Based in the UAE"
   },
   "approach": {
     "text": "I don't stop at what the checklist asks for. I bring an investigator's curiosity to every system, digging into how things really behave, and push for the controls, tooling and research that genuinely raise the bar."
@@ -43,7 +44,8 @@
         "tags": [
           "Web",
           "Tooling"
-        ]
+        ],
+        "thumb": "/img/works/infosec-tools.jpg"
       },
       {
         "title": "Forensics Atlas",
@@ -54,7 +56,8 @@
         "tags": [
           "DFIR",
           "Research"
-        ]
+        ],
+        "thumb": "/img/works/forensics-atlas.jpg"
       },
       {
         "title": "Cybersecurity Blog",
@@ -64,7 +67,8 @@
         "url": "https://sajinshivdas.com/cybersecurity/",
         "tags": [
           "Writing"
-        ]
+        ],
+        "thumb": "/img/works/cybersecurity-blog.jpg"
       },
       {
         "title": "CISSP Study Hub",
@@ -74,7 +78,8 @@
         "url": "https://sajinshivdas.com/sajins-mind-maps/",
         "tags": [
           "Education"
-        ]
+        ],
+        "thumb": "/img/works/cissp-study-hub.jpg"
       },
       {
         "title": "Computer Forensics",
@@ -84,7 +89,8 @@
         "url": "https://sajinshivdas.com/portfolio/sajinforensics/",
         "tags": [
           "Forensics"
-        ]
+        ],
+        "thumb": "/img/works/computer-forensics.jpg"
       }
     ]
   },

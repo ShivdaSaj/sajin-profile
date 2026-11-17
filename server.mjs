@@ -13,6 +13,7 @@ const PUBLIC = path.join(ROOT, "public");
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, "data");
 const CONTENT_FILE = path.join(DATA_DIR, "content.json");
 const PORTRAIT_FILE = path.join(DATA_DIR, "portrait.json");
+const MEDIA = path.join(DATA_DIR, "media");
 const BACKUPS = path.join(DATA_DIR, "backups");
 const PORT = Number(process.env.PORT || 8080);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
@@ -22,9 +23,16 @@ const SECURE_COOKIE = process.env.COOKIE_SECURE !== "false";
 const SEED = JSON.parse(fs.readFileSync(path.join(ROOT, "seed", "content.json"), "utf8"));
 
 // ---------- content store ----------
-fs.mkdirSync(BACKUPS, { recursive: true });
+fs.mkdirSync(BACKUPS, { recursive: true }); fs.mkdirSync(MEDIA, { recursive: true });
+// Uploaded images are accepted only if their bytes really are JPEG, PNG or WebP.
+const IMAGE_TYPES = [["jpg", "image/jpeg", (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff], ["png", "image/png", (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))],
+  ["webp", "image/webp", (b) => b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP"]];
 if (!fs.existsSync(CONTENT_FILE)) fs.writeFileSync(CONTENT_FILE, JSON.stringify(SEED, null, 1));
-let content = validateContent(JSON.parse(fs.readFileSync(CONTENT_FILE, "utf8")), SEED);
+// Content saved before a field existed gets the seed value for it: projects that never had a "thumb"
+// key pick up the seed thumbnail with the same title (an emptied thumbnail stays empty).
+const raw = JSON.parse(fs.readFileSync(CONTENT_FILE, "utf8"));
+for (const w of raw.works?.items || []) if (!("thumb" in w)) { const sw = SEED.works.items.find((x) => x.title === w.title); if (sw?.thumb) w.thumb = sw.thumb; }
+let content = validateContent(raw, SEED);
 const stamp = () => new Date().toISOString().replace(/[:.]/g, "-");
 async function backup(tag = "") {
   await fsp.copyFile(CONTENT_FILE, path.join(BACKUPS, `content-${stamp()}${tag}.json`)).catch(() => {});
@@ -82,6 +90,11 @@ async function handle(req, res) {
   const url = new URL(req.url, "http://localhost"); const p = url.pathname; const ip = clientIp(req);
   if (p === "/healthz") return json(res, 200, { ok: true });
   if (p === "/api/content" && req.method === "GET") return json(res, 200, content, { "Cache-Control": "no-cache" });
+  if (p.startsWith("/media/") && (req.method === "GET" || req.method === "HEAD")) {
+    const name = p.slice(7); if (!/^[\w-]+\.(jpg|png|webp)$/.test(name)) return send(res, 404, "Not found", { "Content-Type": "text/plain" });
+    try { const data = await fsp.readFile(path.join(MEDIA, name)); return send(res, 200, data, { "Content-Type": IMAGE_TYPES.find((t) => name.endsWith("." + t[0]))[1], "Cache-Control": "public, max-age=31536000, immutable" }); }
+    catch { return send(res, 404, "Not found", { "Content-Type": "text/plain" }); }
+  }
   if (p === "/api/portrait" && req.method === "GET") {
     if (!content.portrait.enabled) return json(res, 404, { ok: false, error: "No portrait" });
     try { return send(res, 200, await fsp.readFile(PORTRAIT_FILE), { "Content-Type": "application/json", "Cache-Control": "no-cache" }); } catch { return json(res, 404, { ok: false, error: "No portrait" }); }
@@ -108,6 +121,15 @@ async function handle(req, res) {
       await writeAtomic(PORTRAIT_FILE, JSON.stringify(pts));
       await saveContent({ ...content, portrait: { enabled: true, updatedAt: new Date().toISOString(), points: pts.n } }, ip);
       return json(res, 200, { ok: true, points: pts.n });
+    }
+    if (p === "/api/admin/media" && req.method === "POST") {
+      const { data } = await readJson(req, 3 * 1024 * 1024); const m = /^data:image\/[a-z]+;base64,([A-Za-z0-9+/=]+)$/.exec(String(data || ""));
+      if (!m) throw httpError(400, "Send the image as a base64 data URL");
+      const buf = Buffer.from(m[1], "base64"); if (buf.length > 2 * 1024 * 1024) throw httpError(413, "Image is larger than 2 MB");
+      const type = IMAGE_TYPES.find((t) => t[2](buf)); if (!type) throw httpError(400, "Only JPEG, PNG or WebP images are accepted");
+      const name = `${crypto.createHash("sha256").update(buf).digest("hex").slice(0, 20)}.${type[0]}`; // content-addressed: re-uploads dedupe, URLs never go stale
+      await writeAtomic(path.join(MEDIA, name), buf); console.log(`[admin] uploaded /media/${name} (${buf.length} bytes)`);
+      return json(res, 200, { ok: true, url: `/media/${name}` });
     }
     if (p === "/api/admin/portrait" && req.method === "DELETE") { await saveContent({ ...content, portrait: { enabled: false, updatedAt: new Date().toISOString() } }, ip); return json(res, 200, { ok: true }); }
     if (p === "/api/admin/backups" && req.method === "GET") return json(res, 200, (await fsp.readdir(BACKUPS)).filter((f) => f.startsWith("content-")).sort().reverse());
