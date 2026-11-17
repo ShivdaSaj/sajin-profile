@@ -67,5 +67,6 @@ test("admin API: auth, CSRF, save, portrait, backups", async () => {
     assert.equal(pub.location.fromLabel, "From India"); assert.equal(pub.location.basedLabel, "Based in the UAE");
     const html = await (await fetch(B + "/")).text(); assert.match(html, /<title>Sajin Shivdas \| Cybersecurity Expert<\/title>/); assert.match(html, /--bg:#/);
     assert.equal((await fetch(B + "/../server.mjs")).status === 200, false);
+    assert.equal((await fetch(B + "/img/works/infosec-tools.jpg")).headers.get("content-type"), "image/jpeg");
   } finally { p.kill(); fs.rmSync(dir, { recursive: true }); }
 });
