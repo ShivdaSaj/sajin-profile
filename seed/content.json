@@ -5,13 +5,24 @@
     "description": "Sajin Shivdas, cybersecurity expert based in Abu Dhabi: security architecture, governance, audit and digital forensics.",
     "themes": {
       "default": "dark",
-      "switcher": true,
+      "selection": "fixed",
+      "mode": "particle",
+      "interval": 60,
+      "order": "sequence",
+      "modeInterval": 120,
+      "gasSize": 1,
+      "gasFlow": 1,
+      "galaxySwirl": 1,
+      "galaxyWaves": 1,
+      "galaxyDust": 0.16,
       "followSystem": false,
       "enabled": [
         "dark",
         "light",
+        "whiteneon",
         "neon",
-        "matrix"
+        "matrix",
+        "galaxy"
       ],
       "list": {
         "dark": {
@@ -33,7 +44,9 @@
           "transition": "morph",
           "text": "fade",
           "textGlow": false,
-          "mono": false
+          "mono": false,
+          "particle3": "#9fb4ff",
+          "spectrum": false
         },
         "light": {
           "label": "Light",
@@ -54,6 +67,31 @@
           "transition": "morph",
           "text": "fade",
           "textGlow": false,
+          "mono": false,
+          "particle3": "#7a4fd0",
+          "spectrum": false
+        },
+        "whiteneon": {
+          "label": "White & Neon",
+          "bg": "#ffffff",
+          "fg": "#14141f",
+          "muted": "#6e6e86",
+          "particle": "#00c2e0",
+          "particle2": "#ff1fb4",
+          "particle3": "#7a3cff",
+          "accent": "#ff1fb4",
+          "cityLight": "#ff7a00",
+          "style": "glow",
+          "gradient": true,
+          "spectrum": false,
+          "glow": 1.3,
+          "nightMaps": false,
+          "rain": false,
+          "rainDensity": 0.5,
+          "rainSpeed": 1,
+          "transition": "morph",
+          "text": "fade",
+          "textGlow": true,
           "mono": false
         },
         "neon": {
@@ -75,7 +113,9 @@
           "transition": "morph",
           "text": "fade",
           "textGlow": true,
-          "mono": false
+          "mono": false,
+          "particle3": "#7cff6b",
+          "spectrum": false
         },
         "matrix": {
           "label": "Matrix",
@@ -96,7 +136,32 @@
           "transition": "rain",
           "text": "scramble",
           "textGlow": true,
-          "mono": true
+          "mono": true,
+          "particle3": "#7dffb0",
+          "spectrum": false
+        },
+        "galaxy": {
+          "label": "Galaxy",
+          "bg": "#05030f",
+          "fg": "#f3efff",
+          "muted": "#9a92c4",
+          "particle": "#7b5cff",
+          "particle2": "#ff4fd8",
+          "particle3": "#29d3ff",
+          "accent": "#ffb547",
+          "cityLight": "#ffd27a",
+          "style": "glow",
+          "gradient": true,
+          "spectrum": true,
+          "glow": 1.3,
+          "nightMaps": true,
+          "rain": false,
+          "rainDensity": 0.5,
+          "rainSpeed": 1,
+          "transition": "morph",
+          "text": "fade",
+          "textGlow": true,
+          "mono": false
         }
       }
     }

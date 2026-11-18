@@ -157,27 +157,6 @@ function cursor() {
   const loop = () => { cx += (x - cx) * 0.2; cy += (y - cy) * 0.2; c.style.transform = `translate3d(${cx}px,${cy}px,0)`; requestAnimationFrame(loop); }; loop();
 }
 
-// ---------- theme switcher (top right) ----------
-function themeSwitcher() {
-  const box = $("#themeSwitch"); if (!box) return;
-  if (!TH || !TH.data.switcher || TH.data.enabled.length < 2) { box.hidden = true; return; }
-  const L = TH.data.list;
-  const label = h("span", { class: "ts-label" }, L[TH.id].label);
-  const btn = h("button", { type: "button", class: "ts-btn", "aria-haspopup": "true", "aria-expanded": "false", title: "Change theme" }, h("i", { class: "ts-dot", "aria-hidden": "true" }), h("span", { class: "sr-only" }, "Theme: "), label);
-  const items = TH.data.enabled.map((id) => h("button", { type: "button", role: "menuitemradio", "aria-checked": String(id === TH.id), "data-id": id, style: `--sw-bg:${L[id].bg};--sw-a:${L[id].particle};--sw-b:${L[id].particle2}` },
-    h("i", { class: "ts-sw", "aria-hidden": "true" }), h("span", {}, L[id].label), h("small", {}, L[id].kind)));
-  const menu = h("div", { class: "ts-menu", role: "menu", "aria-label": "Theme" }, items);
-  const open = (v) => { box.classList.toggle("open", v); btn.setAttribute("aria-expanded", String(v)); if (v) items.find((b) => b.dataset.id === TH.id)?.focus(); };
-  btn.addEventListener("click", () => open(!box.classList.contains("open")));
-  for (const b of items) b.addEventListener("click", () => { TH.set(b.dataset.id); open(false); btn.focus(); });
-  menu.addEventListener("keydown", (e) => { const i = items.indexOf(document.activeElement);
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); } });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && box.classList.contains("open")) { open(false); btn.focus(); } });
-  document.addEventListener("pointerdown", (e) => { if (!box.contains(e.target)) open(false); });
-  TH.on((id) => { label.textContent = L[id].label; for (const b of items) b.setAttribute("aria-checked", String(b.dataset.id === id)); });
-  box.replaceChildren(btn, menu);
-}
-
 async function boot() {
   let content;
   try { content = await (await fetch("/api/content", { cache: "no-cache" })).json(); }
@@ -185,15 +164,15 @@ async function boot() {
   document.title = content.site.title;
   const T = content.site.themes; theme = TH ? TH.theme : T.list[T.default];
   render(content);
-  themeSwitcher();
   let portrait = null;
   if (content.portrait?.enabled) portrait = await fetch("/api/portrait", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   await document.fonts?.load?.("800 100px Inter").catch(() => {});
-  const gl = createParticles($("#gl"), { theme, portraitData: portrait, reducedMotion, coarse });
+  const gl = createParticles($("#gl"), { theme, mode: TH ? TH.mode : T.mode === "auto" ? "particle" : T.mode, gas: { size: T.gasSize, flow: T.gasFlow }, galaxy: { swirl: T.galaxySwirl, waves: T.galaxyWaves, dust: T.galaxyDust }, portraitData: portrait, reducedMotion, coarse });
   if (!gl) document.body.classList.add("no-webgl");
   const rain = createRain($("#rain"), { reducedMotion }); rain.set(theme);
   TH?.on((id, t) => { theme = t; gl?.setTheme(t, true); rain.set(t);
     if (scrambling()) { scrambleChars($(".hero-title"), 14); $$(".scr").forEach((e) => scramble(e, 520)); } });
+  TH?.onMode((m) => gl?.setMode(m, true));
   const lenis = reducedMotion ? null : new Lenis({ lerp: 0.13, wheelMultiplier: 1, autoRaf: false });
   window.__lenis = lenis;
   measure();

@@ -122,7 +122,7 @@ function drawPortrait() {
 }
 
 // Themes: which ones visitors can pick, the default, and every colour and effect of each theme.
-const THEME_HELP = { dark: "The original look.", light: "Dark particles on a light page.", neon: "Black page, glowing cyan and magenta particles, glowing text.", matrix: "Code rain behind the page, particles drawn as code glyphs that rain between pages, text that decodes itself." };
+const THEME_HELP = { dark: "The original look.", light: "Dark particles on a light page.", whiteneon: "A white page with neon cyan, magenta and violet particles and neon-edged text.", neon: "Black page, glowing cyan and magenta particles, glowing text.", matrix: "Code rain behind the page, particles drawn as code glyphs that rain between pages, text that decodes itself.", galaxy: "Vibrant nebula colours and cosmic dust: violet, magenta, cyan and gold flowing through the particles. Best with the Galaxy display mode." };
 function drawThemes() {
   const T = c.site.themes, ids = Object.keys(T.list);
   const box = h("div", { class: "list" });
@@ -130,20 +130,22 @@ function drawThemes() {
   function themeCard(id) {
     const t = T.list[id], dark = t.kind === "dark", isDefault = T.default === id, enabled = T.enabled.includes(id);
     const toggle = h("label", { class: "check" }, h("input", { type: "checkbox", checked: enabled, disabled: isDefault, onchange: (e) => {
-      T.enabled = e.target.checked ? ids.filter((x) => x === id || T.enabled.includes(x)) : T.enabled.filter((x) => x !== id); markDirty(); redraw(); } }), isDefault ? "Enabled (default)" : "Visitors can pick it");
+      T.enabled = e.target.checked ? ids.filter((x) => x === id || T.enabled.includes(x)) : T.enabled.filter((x) => x !== id); markDirty(); redraw(); } }), isDefault ? "In rotation (selected theme)" : "In auto rotation");
     return h("div", { class: `item theme-card${enabled ? "" : " off"}` },
       h("div", { class: "item-head" }, h("i", { class: "swatch", style: `--a:${t.bg};--b:${t.particle};--c:${t.particle2}` }), h("b", {}, t.label), h("small", { class: "kind" }, t.kind), h("span", { class: "spacer" }), toggle,
-        h("a", { class: "btn sm", href: `/?theme=${id}`, target: "_blank", rel: "noopener", title: "Shows the saved version of this theme" }, "Preview ↗")),
+        h("a", { class: "btn sm", href: `/?theme=${id}&mode=particle`, target: "_blank", rel: "noopener", title: "Shows the saved version of this theme" }, "Particle ↗"),
+        h("a", { class: "btn sm", href: `/?theme=${id}&mode=gaseous`, target: "_blank", rel: "noopener", title: "Shows the saved version of this theme" }, "Gaseous ↗"),
+        h("a", { class: "btn sm", href: `/?theme=${id}&mode=galaxy`, target: "_blank", rel: "noopener", title: "Shows the saved version of this theme" }, "Galaxy ↗")),
       h("p", { class: "intro" }, THEME_HELP[id]),
       h("h3", {}, "Colours"),
-      grid(field("Name in the switcher", text(t, "label", { max: 30 })), field("Background", color(t, "bg")), field("Text", color(t, "fg")), field("Muted text", color(t, "muted")),
-        field("Particles", color(t, "particle")), field("Second particle colour", color(t, "particle2"), "Used by the gradient, glyph heads and rain heads"), field("Accent", color(t, "accent")),
+      grid(field("Name", text(t, "label", { max: 30 })), field("Background", color(t, "bg")), field("Text", color(t, "fg")), field("Muted text", color(t, "muted")),
+        field("Particles", color(t, "particle")), field("Second particle colour", color(t, "particle2"), "Used by the gradient, glyph heads and rain heads"), field("Third particle colour", color(t, "particle3"), "Used by the nebula spectrum and Galaxy mode"), field("Accent", color(t, "accent")),
         dark ? field("City lights (night maps)", color(t, "cityLight")) : null),
       h("h3", {}, "Particles"),
       grid(field("Particle style", select(t, "style", [["soft", "Soft dots"], ["glow", "Neon glow"], ["glyph", "Code glyphs"]])),
         field("Glow strength", range(t, "glow", 0, 2, 0.1), "Pointer glow on the portrait, and the neon halo"),
         field("Transition between pages", select(t, "transition", [["morph", "Morph (particles drift into the next shape)"], ["rain", "Code rain (particles fall, then re-form)"]])),
-        h("div", { class: "checks" }, check(t, "gradient", "Colour gradient across the particles"), dark ? check(t, "nightMaps", "Night-view maps: India and the UAE drawn as city lights at night") : null)),
+        h("div", { class: "checks" }, check(t, "gradient", "Colour gradient across the particles"), check(t, "spectrum", "Nebula spectrum: all three particle colours flow through space"), dark ? check(t, "nightMaps", "Night-view maps: India and the UAE drawn as city lights at night") : null)),
       h("h3", {}, "Page effects"),
       grid(field("Text effect", select(t, "text", [["fade", "Fade in"], ["scramble", "Decode (letters scramble into place)"]])),
         h("div", { class: "checks" }, check(t, "textGlow", "Glowing text"), check(t, "mono", "Monospace font"), check(t, "rain", "Digital rain in the background")),
@@ -152,8 +154,30 @@ function drawThemes() {
   redraw();
   const def = h("select", { onchange: (e) => { T.default = e.target.value; if (!T.enabled.includes(T.default)) T.enabled = ids.filter((x) => x === T.default || T.enabled.includes(x)); markDirty(); redraw(); } },
     ids.map((id) => { const o = h("option", { value: id }, T.list[id].label); o.selected = T.default === id; return o; }));
-  return [panel("Themes & effects", "Visitors see the default theme first and can switch with the button at the top right of the page; their choice is remembered on their device. Previews show the last saved version, so save first.",
-    grid(field("Default theme", def), h("div", { class: "checks" }, check(T, "switcher", "Show the theme switcher to visitors"), check(T, "followSystem", "Follow the visitor's light/dark system setting until they pick a theme")))),
+  const secs = (obj, key) => { // interval editor: number + unit
+    const unit = obj[key] % 3600 === 0 ? 3600 : obj[key] % 60 === 0 ? 60 : 1;
+    const n = h("input", { type: "number", min: 1, step: 1, value: obj[key] / unit, class: "num" });
+    const u = h("select", {}, [[1, "seconds"], [60, "minutes"], [3600, "hours"]].map(([v, l]) => { const o = h("option", { value: v }, l); o.selected = v === unit; return o; }));
+    const upd = () => { obj[key] = Math.max(10, Math.min(86400, Math.round(+n.value * +u.value || 10))); markDirty(); };
+    n.addEventListener("input", upd); u.addEventListener("change", upd); return h("span", { class: "interval" }, n, u);
+  };
+  const seg = (obj, key, options, on) => h("div", { class: "seg", role: "radiogroup" }, options.map(([v, l, d]) => h("label", { class: "segopt" },
+    h("input", { type: "radio", name: key, value: v, checked: obj[key] === v, onchange: () => { obj[key] = v; markDirty(); on?.(); } }), h("span", {}, h("b", {}, l), d ? h("small", {}, d) : null))));
+  const general = h("div", { class: "general" });
+  const drawGeneral = () => mount(general,
+    h("h3", {}, "Display mode"),
+    seg(T, "mode", [["particle", "Particle", "Crisp particles and sliding text (the original)."], ["gaseous", "Gaseous", "Shapes turn to drifting smoke, text blurs in, soft mist."], ["galaxy", "Galaxy", "Colourful nebula and cosmic dust, 3D particle waves and swirling transitions."], ["auto", "Auto", "Cycles particle → gaseous → galaxy."]], drawGeneral),
+    T.mode === "auto" ? grid(field("Switch mode every", secs(T, "modeInterval"))) : null,
+    ["gaseous", "auto"].includes(T.mode) ? grid(field("Smoke puff size", range(T, "gasSize", 0.5, 2, 0.1)), field("Smoke flow speed", range(T, "gasFlow", 0, 3, 0.1))) : null,
+    ["galaxy", "auto"].includes(T.mode) ? grid(field("Swirl strength", range(T, "galaxySwirl", 0, 2, 0.1)), field("3D wave strength", range(T, "galaxyWaves", 0, 2, 0.1)), field("Cosmic dust (share of particles)", range(T, "galaxyDust", 0, 0.4, 0.02))) : null,
+    h("h3", {}, "Theme"),
+    seg(T, "selection", [["fixed", "Fixed theme", "Always shows the theme selected below."], ["auto", "Auto rotate", "Cycles through every theme marked “In auto rotation”."]], drawGeneral),
+    T.selection === "fixed"
+      ? grid(field("Theme", def), h("div", { class: "checks" }, check(T, "followSystem", "Use Light for visitors whose device is set to light mode (if Light is in rotation)")))
+      : grid(field("Change theme every", secs(T, "interval")), field("Order", select(T, "order", [["sequence", "In order"], ["random", "Random"]])), field("Starting / fallback theme", def)),
+    h("p", { class: "intro" }, T.selection === "auto" ? `Rotating through: ${T.enabled.map((x) => T.list[x].label).join(" → ")}. All visitors see the same theme at the same time; open pages change live.` : null));
+  drawGeneral();
+  return [panel("Themes & effects", "Only you choose the look: visitors no longer see a theme switcher. Previews show the last saved version, so save first.", general),
     panel("Themes", null, box)];
 }
 

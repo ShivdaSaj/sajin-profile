@@ -8,9 +8,9 @@ const vertexShader = /* glsl */ `
   attribute vec4 aRand; // x delay, y size, z phase, w luma
   attribute vec2 aCity; // night-view light on the India (x) and UAE (y) maps
   uniform float uTime, uStage, uFormation, uRing, uTurb, uSize, uPixelRatio, uGlow, uAspect, uHelixSpin;
-  uniform float uNight, uFall, uPulse, uStyleSize;
+  uniform float uNight, uFall, uPulse, uStyleSize, uGas, uGasSize, uGasFlow, uGalaxy, uSwirl, uWaves, uDust;
   uniform vec2 uPointer; uniform vec4 uRect;
-  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick;
+  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick; varying float vKeep; varying float vDust; varying vec3 vPos;
 
   vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
   float weight(float k, float i, float f) { return (1.0 - f) * step(abs(k - i), 0.5) + f * step(abs(k - i - 1.0), 0.5); }
@@ -34,6 +34,25 @@ const vertexShader = /* glsl */ `
     p.y -= uFall * travel * (0.3 + aRand.x * 1.2);
     p += 0.006 * vec3(sin(uTime * 1.7 + aRand.z * 40.0), cos(uTime * 1.3 + aRand.z * 31.0), 0.0); // idle shimmer
 
+    // gaseous: every shape becomes slow, curling smoke; billows rise and roll with the flow
+    float gt = uTime * 0.22 * uGasFlow + aRand.z * 6.2831;
+    vec3 flow = vec3(sin(gt + p.y * 2.3) + 0.5 * sin(gt * 1.7 + p.z * 3.1), cos(gt * 0.8 + p.x * 1.9) + 0.4 * sin(gt * 1.3 + p.y * 2.7), sin(gt * 1.1 + p.x * 2.2));
+    p += uGas * (0.045 + 0.05 * aRand.y) * flow * (0.4 + 0.6 * min(uGasFlow, 1.5));
+    p.y += uGas * 0.03 * sin(uTime * 0.15 * uGasFlow + aRand.x * 6.2831);
+    // galaxy: abstract 3D waves roll through every shape, particles curl in small swirls, and between pages
+    // the cloud is pulled into a vortex; some particles leave as cosmic dust, a slowly turning star field
+    float gT = uTime * 0.3;
+    p.z += uGalaxy * uWaves * 0.13 * sin(p.x * 3.0 + gT * 2.0) * cos(p.y * 2.2 - gT);
+    p.y += uGalaxy * uWaves * 0.035 * sin(p.z * 5.0 + p.x * 2.0 + gT * 1.5);
+    float ca = gT * (1.0 + aRand.x) + length(p.xy) * 9.0 + aRand.z * 6.2831;
+    p.xy += uGalaxy * uSwirl * 0.028 * vec2(cos(ca), sin(ca));
+    float vort = uGalaxy * uSwirl * travel * (1.4 + aRand.x * 2.2) * (1.0 - 0.6 * min(length(p.xy), 1.0));
+    p.xy = mat2(cos(vort), sin(vort), -sin(vort), cos(vort)) * p.xy;
+    vDust = uGalaxy * step(1.0 - uDust, fract(aRand.z * 13.7 + aRand.y * 5.1));
+    vec3 dust = aOrigin * 0.8; float da = uTime * 0.025 * (0.4 + aRand.x);
+    dust.xz = mat2(cos(da), sin(da), -sin(da), cos(da)) * dust.xz;
+    p = mix(p, dust, vDust);
+    vPos = p;
     // first appearance: from a scattered shell into the shape, each particle on its own delay
     float form = smoothstep(aRand.x * 0.55, aRand.x * 0.55 + 0.45, uFormation);
     // with the rain transition the particles first fall in from above the view, in columns
@@ -54,20 +73,33 @@ const vertexShader = /* glsl */ `
     vGlyph = mod(floor(aRand.z * 64.0) + floor(uTime * aRand.x * 3.0), 64.0);
     vFlick = 0.72 + 0.28 * sin(uTime * (3.0 + aRand.x * 9.0) + aRand.z * 30.0);
     float night = mix(1.0, mix(0.95, 2.1, vLight), vNightW); // lit cities are drawn larger on the night maps
-    gl_PointSize = uSize * uStyleSize * night * (0.55 + aRand.y) * uPixelRatio * (1.0 + vGlow * 1.2) / -mv.z;
+    // gaseous mode draws a third of the particles as large, faint, overlapping puffs (the rest fade out)
+    vKeep = 1.0 - uGas * step(0.34, fract(aRand.z * 7.31 + aRand.x * 3.7));
+    float puff = mix(uStyleSize, 6.5 * uGasSize * (0.6 + 0.8 * aRand.x), uGas);
+    puff *= mix(1.0, 0.5, vDust);
+    gl_PointSize = vKeep < 0.01 ? 0.0 : uSize * puff * night * (0.55 + aRand.y) * uPixelRatio * (1.0 + vGlow * 1.2) / -mv.z;
     vAlpha = (0.32 + 0.68 * aRand.w) * mix(0.5, 1.0, form);
   }`;
 
 const fragmentShader = /* glsl */ `
-  uniform vec3 uColor, uColor2, uCity, uLand; uniform float uExposure, uGradient, uStyle, uGlowAmt; uniform sampler2D uGlyphs;
-  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick;
+  uniform vec3 uColor, uColor2, uColor3, uCity, uLand; uniform float uExposure, uGradient, uStyle, uGlowAmt, uGas, uTime, uSpectrum, uGalaxy; uniform sampler2D uGlyphs;
+  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick; varying float vKeep; varying float vDust; varying vec3 vPos;
   void main() {
     vec2 pc = gl_PointCoord; float d = length(pc - 0.5), a;
     if (uStyle < 0.5) a = smoothstep(0.5, 0.05, d);                                       // soft dot
     else if (uStyle < 1.5) a = smoothstep(0.5, 0.0, d) * 0.35 * uGlowAmt + exp(-d * d * 22.0); // neon: hot core and a halo
     else { vec2 cell = vec2(mod(vGlyph, 8.0), floor(vGlyph / 8.0)); a = texture2D(uGlyphs, (cell + pc) / 8.0).a * vFlick; } // code glyph
-    a *= vAlpha * uExposure;
+    // smoke puff: a soft gaussian broken up by a slowly turning wisp pattern
+    float ang = vGlyph * 0.7 + uTime * 0.05; vec2 q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * (pc - 0.5);
+    float wisp = 0.55 + 0.45 * sin(q.x * 9.0 + sin(q.y * 7.0 + vGlyph) * 2.0);
+    float gas = exp(-d * d * 11.0) * wisp * 0.16;
+    a = mix(a, gas, uGas) * vKeep;
+    a = mix(a, smoothstep(0.5, 0.0, d) * (0.45 + 0.55 * sin(uTime * 2.0 + vGlyph * 3.0)), vDust); // twinkling dust
+    a *= vAlpha * uExposure * (1.0 + 0.35 * uGalaxy);
     vec3 col = mix(uColor, uColor2, vGrad * uGradient);
+    // spectrum: three colours flowing through space like a nebula
+    float h1 = 0.5 + 0.5 * sin(vPos.x * 1.8 + vPos.z * 0.9 + uTime * 0.15), h2 = 0.5 + 0.5 * sin(vPos.y * 2.4 - vPos.z * 1.2 - uTime * 0.11 + 2.0);
+    col = mix(col, mix(mix(uColor, uColor2, h1), uColor3, h2 * 0.85), max(uSpectrum, uGalaxy));
     // night maps: dim land, warm city lights
     col = mix(col, mix(uLand, uCity, smoothstep(0.08, 0.6, vLight)), vNightW);
     a *= mix(1.0, mix(0.6, 1.8, vLight), vNightW);
@@ -99,7 +131,7 @@ const POSES = [
 ];
 
 const body = document.body;
-export function createParticles(container, { theme, portraitData, reducedMotion, coarse }) {
+export function createParticles(container, { theme, mode = "particle", gas = {}, galaxy = {}, portraitData, reducedMotion, coarse }) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" }); }
   catch (e) { console.warn("WebGL unavailable:", e); return null; }
@@ -134,15 +166,18 @@ export function createParticles(container, { theme, portraitData, reducedMotion,
     uNight: { value: 0 }, uFall: { value: 0 }, uPulse: { value: 0 }, uStyleSize: { value: 1 }, uStyle: { value: 0 }, uGradient: { value: 0 }, uGlowAmt: { value: 1 },
     uColor: { value: new THREE.Color() }, uColor2: { value: new THREE.Color() }, uCity: { value: new THREE.Color() }, uLand: { value: new THREE.Color() },
     uExposure: { value: 0.55 }, uGlyphs: { value: null },
+    uGalaxy: { value: mode === "galaxy" ? 1 : 0 }, uSwirl: { value: reducedMotion ? 0 : galaxy.swirl ?? 1 }, uWaves: { value: reducedMotion ? 0 : galaxy.waves ?? 1 }, uDust: { value: galaxy.dust ?? 0.16 },
+    uSpectrum: { value: 0 }, uColor3: { value: new THREE.Color() },
+    uGas: { value: mode === "gaseous" ? 1 : 0 }, uGasSize: { value: gas.size ?? 1 }, uGasFlow: { value: reducedMotion ? 0 : gas.flow ?? 1 },
   };
   const mat = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms: u, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
 
   // ---- themes: colours and numbers ease towards the new theme; the particle style swaps mid-burst ----
   const base = coarse ? 0.75 : 0.55;
-  const goal = { color: new THREE.Color(), color2: new THREE.Color(), city: new THREE.Color(), land: new THREE.Color(), night: 0, fall: 0, gradient: 0, glow: 1, exposure: base, size: 1 };
+  const goal = { spectrum: 0, color3: new THREE.Color(), color: new THREE.Color(), color2: new THREE.Color(), city: new THREE.Color(), land: new THREE.Color(), night: 0, fall: 0, gradient: 0, glow: 1, exposure: base, size: 1 };
   let swapTimer = 0;
   function setTheme(t, animate = true) {
-    goal.color.set(t.particle); goal.color2.set(t.particle2); goal.city.set(t.cityLight); goal.land.set(t.muted).lerp(goal.color, 0.25); // dim land under the night lights
+    goal.color.set(t.particle); goal.color2.set(t.particle2); goal.color3.set(t.particle3); goal.spectrum = t.spectrum ? 1 : 0; goal.city.set(t.cityLight); goal.land.set(t.muted).lerp(goal.color, 0.25); // dim land under the night lights
     goal.night = t.nightMaps ? 1 : 0; goal.fall = t.transition === "rain" && !reducedMotion ? 1 : 0; goal.gradient = t.gradient ? 1 : 0; goal.glow = t.glow;
     goal.exposure = base * (t.kind === "light" ? 1.6 : t.style === "glow" ? 1.25 : t.style === "glyph" ? 2 : 1); goal.size = STYLE_SIZE[t.style] || 1;
     const swap = () => {
@@ -152,10 +187,14 @@ export function createParticles(container, { theme, portraitData, reducedMotion,
     };
     clearTimeout(swapTimer);
     if (animate && !reducedMotion) { u.uPulse.value = 1; swapTimer = setTimeout(swap, 180); }
-    else { swap(); u.uColor.value.copy(goal.color); u.uColor2.value.copy(goal.color2); u.uCity.value.copy(goal.city); u.uLand.value.copy(goal.land);
+    else { swap(); u.uColor.value.copy(goal.color); u.uColor2.value.copy(goal.color2); u.uColor3.value.copy(goal.color3); u.uSpectrum.value = goal.spectrum; u.uCity.value.copy(goal.city); u.uLand.value.copy(goal.land);
       u.uNight.value = goal.night; u.uFall.value = goal.fall; u.uGradient.value = goal.gradient; u.uGlowAmt.value = goal.glow; u.uExposure.value = goal.exposure; u.uStyleSize.value = goal.size; }
   }
   setTheme(theme, false);
+  // display mode: particle (0) or gaseous (1); eases over about a second and a half, with a burst
+  let gasGoal = u.uGas.value, galGoal = u.uGalaxy.value;
+  function setMode(m, animate = true) { gasGoal = m === "gaseous" ? 1 : 0; galGoal = m === "galaxy" ? 1 : 0;
+    if (!animate || reducedMotion) { u.uGas.value = gasGoal; u.uGalaxy.value = galGoal; } else u.uPulse.value = 1; }
   const points = new THREE.Points(g, mat), group = new THREE.Group(); group.add(points); scene.add(group);
 
   let viewW = 1, viewH = 1, W = 1, H = 1;
@@ -198,6 +237,9 @@ export function createParticles(container, { theme, portraitData, reducedMotion,
     u.uColor.value.lerp(goal.color, tk); u.uColor2.value.lerp(goal.color2, tk); u.uCity.value.lerp(goal.city, tk); u.uLand.value.lerp(goal.land, tk);
     ease("uNight", goal.night); ease("uFall", goal.fall); ease("uGradient", goal.gradient); ease("uGlowAmt", goal.glow); ease("uExposure", goal.exposure); ease("uStyleSize", goal.size);
     u.uPulse.value *= Math.exp(-dt / 0.45);
+    u.uGas.value += (gasGoal - u.uGas.value) * (1 - Math.exp(-dt / 0.5));
+    u.uGalaxy.value += (galGoal - u.uGalaxy.value) * (1 - Math.exp(-dt / 0.6));
+    u.uColor3.value.lerp(goal.color3, tk); ease("uSpectrum", goal.spectrum);
     // pose: blend the two neighbouring stage poses
     const i = Math.min(Math.floor(s), POSES.length - 1), f = THREE.MathUtils.smoothstep(s - i, 0, 1), a = POSES[i], b = POSES[Math.min(i + 1, POSES.length - 1)];
     const mob = W < 760, k = (key) => lerp(a[key], b[key], f);
@@ -229,5 +271,5 @@ export function createParticles(container, { theme, portraitData, reducedMotion,
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  return { state, resize, setTheme, dispose() { running = false; renderer.dispose(); g.dispose(); mat.dispose(); renderer.domElement.remove(); } };
+  return { state, resize, setTheme, setMode, dispose() { running = false; renderer.dispose(); g.dispose(); mat.dispose(); renderer.domElement.remove(); } };
 }

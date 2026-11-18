@@ -13,11 +13,15 @@ test("validateContent fills gaps from the seed and caps lengths", () => {
 test("themes: legacy colours migrate to Dark, options are typed and clamped", () => {
   const old = validateContent({ site: { theme: { bg: "#101010", fg: "#fafafa", muted: "#999999", particle: "#ffeeee", accent: "#00ff00" } } }, seed);
   assert.equal(old.site.themes.list.dark.bg, "#101010"); assert.equal(old.site.themes.list.dark.accent, "#00ff00");
-  assert.deepEqual(old.site.themes.enabled, ["dark", "light", "neon", "matrix"]); assert.equal(old.site.themes.default, "dark");
-  const t = validateContent({ site: { themes: { default: "matrix", enabled: ["light", "bogus"], switcher: "yes",
-    list: { light: { nightMaps: true, style: "laser", glow: 9 }, matrix: { rainDensity: -1, rainSpeed: 99, label: "  " } } } } }, seed).site.themes;
+  assert.deepEqual(old.site.themes.enabled, ["dark", "light", "whiteneon", "neon", "matrix", "galaxy"]); assert.equal(old.site.themes.default, "dark");
+  const t = validateContent({ site: { themes: { default: "matrix", enabled: ["light", "bogus"], selection: "auto", mode: "smoke", interval: 2, modeInterval: 999999, order: "random",
+    list: { dark: {}, neon: {}, galaxy: {}, whiteneon: {}, light: { nightMaps: true, style: "laser", glow: 9 }, matrix: { rainDensity: -1, rainSpeed: 99, label: "  " } } } } }, seed).site.themes;
   assert.equal(t.default, "matrix"); assert.deepEqual(t.enabled, ["light", "matrix"]); // the default is always enabled
-  assert.equal(t.switcher, seed.site.themes.switcher);
+  assert.equal(t.selection, "auto"); assert.equal(t.mode, "particle"); assert.equal(t.interval, 10); assert.equal(t.modeInterval, 86400); assert.equal(t.order, "random");
+  assert.equal(validateContent({ site: { themes: { mode: "galaxy", list: {} } } }, seed).site.themes.mode, "galaxy");
+  // content saved before Galaxy existed: Galaxy joins the rotation, with the seed colours
+  const before = validateContent({ site: { themes: { enabled: ["dark"], list: { dark: {}, light: {}, neon: {}, matrix: {} } } } }, seed).site.themes;
+  assert.deepEqual(before.enabled, ["dark", "whiteneon", "galaxy"]); assert.equal(before.list.galaxy.particle3, seed.site.themes.list.galaxy.particle3); assert.equal(before.list.galaxy.spectrum, true); assert.equal(before.list.whiteneon.kind, "light"); assert.equal(before.list.whiteneon.nightMaps, false);
   assert.equal(t.list.light.nightMaps, false); assert.equal(t.list.light.style, "soft"); assert.equal(t.list.light.glow, 2); assert.equal(t.list.light.kind, "light");
   assert.equal(t.list.matrix.rainDensity, 0.1); assert.equal(t.list.matrix.rainSpeed, 3); assert.equal(t.list.matrix.label, "Matrix");
 });
