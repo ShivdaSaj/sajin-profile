@@ -181,7 +181,29 @@
   },
   "location": {
     "fromLabel": "From India",
-    "basedLabel": "Based in the UAE"
+    "basedLabel": "Based in the UAE",
+    "maps": {
+      "india": {
+        "source": "nasa",
+        "view": "both",
+        "mask": true,
+        "invert": false,
+        "image": "",
+        "pinX": 0.5,
+        "pinY": 0.5,
+        "photoOpacity": 0.9
+      },
+      "uae": {
+        "source": "nasa",
+        "view": "both",
+        "mask": true,
+        "invert": false,
+        "image": "",
+        "pinX": 0.5,
+        "pinY": 0.5,
+        "photoOpacity": 0.9
+      }
+    }
   },
   "approach": {
     "text": "I don't stop at what the checklist asks for. I bring an investigator's curiosity to every system, digging into how things really behave, and push for the controls, tooling and research that genuinely raise the bar."

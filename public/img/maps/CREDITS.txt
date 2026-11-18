@@ -1,0 +1,3 @@
+india-night.jpg and uae-night.jpg: NASA Earth Observatory / NASA Goddard, "Black Marble" (VIIRS night lights, 2016),
+retrieved from NASA GIBS (layer VIIRS_Black_Marble, EPSG:4326). NASA imagery is not copyrighted; credit requested.
+india-night.jpg bounds: lon 67.5..98.5, lat 6..37      uae-night.jpg bounds: lon 51.3..56.7, lat 22.4..26.4

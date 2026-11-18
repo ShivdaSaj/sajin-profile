@@ -89,3 +89,8 @@ select { width: 100%; font: inherit; font-size: 14.5px; padding: 10px 12px; bord
 .general { display: grid; gap: 14px; }
 .interval { display: flex; gap: 8px; } .interval .num { width: 90px; flex: none; }
 input[type=number] { font: inherit; font-size: 14.5px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+.map-prev { position: relative; max-width: 520px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #000; line-height: 0; }
+.map-prev img { width: 100%; display: block; }
+.map-prev.pick { cursor: crosshair; }
+.map-pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 12px var(--accent); }
+.muted { color: var(--muted); font-size: 12.5px; }

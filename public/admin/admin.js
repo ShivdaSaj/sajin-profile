@@ -1,5 +1,5 @@
 // Profile admin: edit every page of the site, upload a portrait (converted to particles), manage backups.
-import { imageToPoints } from "/js/shapes.js";
+import { imageToPoints, NASA_MAPS } from "/js/shapes.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 function h(tag, attrs = {}, ...kids) {
@@ -75,8 +75,9 @@ function draw() {
     portrait: drawPortrait,
     statement: () => panel("Statement", "Revealed word by word while the portrait turns away.", field("Text", text(c.statement, "text", { area: true, max: 600 }), null, true)),
     globe: () => panel("Globe", "Two captions ride a ring around the spinning globe.", grid(field("Top caption", text(c.globe, "ringTop", { max: 60 })), field("Bottom caption", text(c.globe, "ringBottom", { max: 60 })))),
-    location: () => panel("Maps", "Two pages: page 4 draws India, page 5 a zoomed-in map of the UAE. Each label is pinned to its map (the UAE label sits on Abu Dhabi).",
+    location: () => [panel("Maps", "Two pages: page 4 shows India, page 5 a zoomed-in UAE. Each label is pinned to its map (the UAE label sits on Abu Dhabi).",
       grid(field("Page 4 label (on India)", text(c.location, "fromLabel", { max: 60 })), field("Page 5 label (on the UAE)", text(c.location, "basedLabel", { max: 60 })))),
+      mapEditor("india", "Page 4 · India"), mapEditor("uae", "Page 5 · UAE")],
     approach: () => panel("How I work", "Shown beside the diagonal particle ribbon, revealed word by word.", field("Text", text(c.approach, "text", { area: true, max: 600 }), null, true)),
     works: () => panel("Selected works", "These slide along the ribbon as visitors scroll. Hovering shows the description and tags.",
       grid(field("Heading", text(c.works, "kicker", { max: 60 })), field("Closing line (shown with the spiral)", text(c.works, "closingLine", { max: 140 }))),
@@ -98,6 +99,42 @@ function draw() {
   };
   const v = views[section](); mount(m, v instanceof Promise ? h("p", {}, "Loading…") : v);
   if (v instanceof Promise) v.then((x) => mount(m, x));
+}
+
+// Map page: drawn outline, NASA night imagery or a custom picture; particles, photo or both.
+function mapEditor(which, title) {
+  const m = c.location.maps[which], box = h("div", { class: "general" });
+  const upload = async (f) => {
+    const img = new Image(), u = URL.createObjectURL(f); img.src = u; await img.decode(); URL.revokeObjectURL(u);
+    const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement("canvas");
+    cv.width = Math.round(img.naturalWidth * sc); cv.height = Math.round(img.naturalHeight * sc); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+    let q = 0.86, data = cv.toDataURL("image/jpeg", q); while (data.length > 2.6e6 && q > 0.5) data = cv.toDataURL("image/jpeg", (q -= 0.08));
+    const r = await api("/api/admin/media", { method: "POST", body: JSON.stringify({ data }) }); return r.url;
+  };
+  // preview: the picture used for this page; for custom pictures, click to place the label pin
+  const preview = () => {
+    const src = m.source === "nasa" ? NASA_MAPS[which].image : m.source === "custom" ? m.image : null;
+    if (!src) return h("p", { class: "intro" }, "The map is drawn from the country outline, with city lights in the dark themes.");
+    const pin = h("i", { class: "map-pin", style: `left:${m.pinX * 100}%;top:${m.pinY * 100}%` });
+    const fig = h("div", { class: `map-prev${m.source === "custom" ? " pick" : ""}` }, h("img", { src, alt: "" }), m.source === "custom" ? pin : null);
+    if (m.source === "custom") fig.addEventListener("click", (e) => { const r = fig.getBoundingClientRect(); m.pinX = +((e.clientX - r.left) / r.width).toFixed(4); m.pinY = +((e.clientY - r.top) / r.height).toFixed(4);
+      pin.style.left = `${m.pinX * 100}%`; pin.style.top = `${m.pinY * 100}%`; markDirty(); });
+    return h("div", {}, fig, h("small", { class: "muted" }, m.source === "nasa" ? "NASA Earth Observatory · Black Marble (VIIRS night lights, 2016). The label is pinned by its real location." : "Click the picture to place the label pin."));
+  };
+  const draw = () => mount(box,
+    h("h3", {}, "Map source"),
+    h("div", { class: "seg" }, [["nasa", "NASA night view", "Real night-time satellite imagery (Black Marble)."], ["outline", "Outline drawing", "The country outline with drawn city lights."], ["custom", "Custom map", "Upload your own map or picture."]]
+      .map(([v, l, d]) => h("label", { class: "segopt" }, h("input", { type: "radio", name: `src-${which}`, value: v, checked: m.source === v, onchange: () => { m.source = v; markDirty(); draw(); } }), h("span", {}, h("b", {}, l), h("small", {}, d))))),
+    m.source === "custom" ? h("div", { class: "actions" }, h("label", { class: "btn sm" }, m.image ? "Replace picture…" : "Upload picture…", h("input", { type: "file", accept: "image/png,image/jpeg,image/webp", hidden: true, onchange: async (e) => {
+      const f = e.target.files[0]; if (!f) return; try { m.image = await upload(f); markDirty(); draw(); toast("Map uploaded. Place the pin, then Save."); } catch (x) { toast(`Upload failed: ${x.message}`, true); } } })),
+      m.image ? null : h("small", { class: "muted" }, "Until a picture is uploaded the page keeps the NASA view.")) : null,
+    m.source !== "outline" ? [h("h3", {}, "Show as"),
+      grid(field("View", select(m, "view", [["both", "Photo with particles on top"], ["particles", "Particles only (sampled from the picture)"], ["photo", "Photo only"]])),
+        field("Photo opacity", range(m, "photoOpacity", 0.1, 1, 0.05)),
+        h("div", { class: "checks" }, m.source === "nasa" ? check(m, "mask", "Clip to the country outline") : null, check(m, "invert", "Particles gather on dark parts (for light maps)")))] : null,
+    preview());
+  draw();
+  return panel(title, null, box);
 }
 
 // Portrait: the image is converted to points in the browser; only the points are uploaded.

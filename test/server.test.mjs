@@ -25,6 +25,12 @@ test("themes: legacy colours migrate to Dark, options are typed and clamped", ()
   assert.equal(t.list.light.nightMaps, false); assert.equal(t.list.light.style, "soft"); assert.equal(t.list.light.glow, 2); assert.equal(t.list.light.kind, "light");
   assert.equal(t.list.matrix.rainDensity, 0.1); assert.equal(t.list.matrix.rainSpeed, 3); assert.equal(t.list.matrix.label, "Matrix");
 });
+test("map pages: NASA by default, custom maps need an uploaded picture, values clamped", () => {
+  const d = validateContent({}, seed).location.maps; assert.equal(d.india.source, "nasa"); assert.equal(d.uae.view, "both");
+  const m = validateContent({ location: { maps: { india: { source: "custom", image: "https://evil.example/x.jpg" }, uae: { source: "custom", image: "/media/abc123.jpg", view: "photo", pinX: 7, photoOpacity: 0 } } } }, seed).location.maps;
+  assert.equal(m.india.source, "nasa"); assert.equal(m.india.image, "");
+  assert.equal(m.uae.source, "custom"); assert.equal(m.uae.image, "/media/abc123.jpg"); assert.equal(m.uae.pinX, 1); assert.equal(m.uae.photoOpacity, 0.1);
+});
 test("validateContent rejects unsafe links only when strict", () => {
   const bad = { ...seed, contact: { ...seed.contact, links: [{ label: "x", url: "javascript:alert(1)" }] } };
   assert.throws(() => validateContent(bad, seed, true), /link must start/);

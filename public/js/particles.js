@@ -9,7 +9,7 @@ const vertexShader = /* glsl */ `
   attribute vec2 aCity; // night-view light on the India (x) and UAE (y) maps
   uniform float uTime, uStage, uFormation, uRing, uTurb, uSize, uPixelRatio, uGlow, uAspect, uHelixSpin;
   uniform float uNight, uFall, uPulse, uStyleSize, uGas, uGasSize, uGasFlow, uGalaxy, uSwirl, uWaves, uDust;
-  uniform vec2 uPointer; uniform vec4 uRect;
+  uniform vec2 uPointer; uniform vec4 uRect; uniform vec2 uMapHide;
   varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick; varying float vKeep; varying float vDust; varying vec3 vPos;
 
   vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
@@ -78,7 +78,7 @@ const vertexShader = /* glsl */ `
     float puff = mix(uStyleSize, 6.5 * uGasSize * (0.6 + 0.8 * aRand.x), uGas);
     puff *= mix(1.0, 0.5, vDust);
     gl_PointSize = vKeep < 0.01 ? 0.0 : uSize * puff * night * (0.55 + aRand.y) * uPixelRatio * (1.0 + vGlow * 1.2) / -mv.z;
-    vAlpha = (0.32 + 0.68 * aRand.w) * mix(0.5, 1.0, form);
+    vAlpha = (0.32 + 0.68 * aRand.w) * mix(0.5, 1.0, form) * (1.0 - wI * uMapHide.x - wU * uMapHide.y); // "photo only" map pages hide their particles
   }`;
 
 const fragmentShader = /* glsl */ `
@@ -131,7 +131,7 @@ const POSES = [
 ];
 
 const body = document.body;
-export function createParticles(container, { theme, mode = "particle", gas = {}, galaxy = {}, portraitData, reducedMotion, coarse }) {
+export function createParticles(container, { theme, mode = "particle", gas = {}, galaxy = {}, maps = {}, portraitData, reducedMotion, coarse }) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" }); }
   catch (e) { console.warn("WebGL unavailable:", e); return null; }
@@ -146,7 +146,12 @@ export function createParticles(container, { theme, mode = "particle", gas = {},
   for (let i = 0; i < n; i++) { rand[4 * i] = r(); rand[4 * i + 1] = Math.pow(r(), 3) * 1.4 + 0.35 * hero.luma[i]; rand[4 * i + 2] = r(); rand[4 * i + 3] = hero.luma[i]; }
   g.setAttribute("position", new THREE.BufferAttribute(hero.positions, 3));
   g.setAttribute("aGlobe", new THREE.BufferAttribute(S.globe(n), 3));
-  const indiaShape = S.india(n), uaeShape = S.uae(n);
+  // map pages: the drawn outline, or particles sampled from NASA night imagery or a custom picture
+  const mapShape = (which, outline) => { const m = maps[which];
+    if (m?.img && m.cfg.source !== "outline") { try { return S.mapFromImage(n, m.img, which, m.cfg); } catch (e) { console.warn(`map ${which}:`, e.message); } }
+    return outline(n); };
+  const indiaShape = mapShape("india", S.india), uaeShape = mapShape("uae", S.uae);
+  const mapRects = [indiaShape.rect, uaeShape.rect];
   g.setAttribute("aIndia", new THREE.BufferAttribute(indiaShape, 3)); g.setAttribute("aUae", new THREE.BufferAttribute(uaeShape, 3));
   const city = new Float32Array(2 * n); for (let i = 0; i < n; i++) { city[2 * i] = indiaShape.lights[i]; city[2 * i + 1] = uaeShape.lights[i]; }
   g.setAttribute("aCity", new THREE.BufferAttribute(city, 2));
@@ -162,7 +167,7 @@ export function createParticles(container, { theme, mode = "particle", gas = {},
   const u = {
     uTime: { value: 0 }, uStage: { value: 0 }, uFormation: { value: reducedMotion ? 1 : 0 }, uRing: { value: 0 }, uTurb: { value: 0 },
     uSize: { value: 4 }, uPixelRatio: { value: renderer.getPixelRatio() }, uGlow: { value: 0 }, uAspect: { value: 1 }, uHelixSpin: { value: 0 },
-    uPointer: { value: new THREE.Vector2(0, 0) }, uRect: { value: new THREE.Vector4(-1, 1, -0.3, 0.3) },
+    uPointer: { value: new THREE.Vector2(0, 0) }, uMapHide: { value: new THREE.Vector2(maps.india?.cfg.view === "photo" && maps.india.img ? 1 : 0, maps.uae?.cfg.view === "photo" && maps.uae.img ? 1 : 0) }, uRect: { value: new THREE.Vector4(-1, 1, -0.3, 0.3) },
     uNight: { value: 0 }, uFall: { value: 0 }, uPulse: { value: 0 }, uStyleSize: { value: 1 }, uStyle: { value: 0 }, uGradient: { value: 0 }, uGlowAmt: { value: 1 },
     uColor: { value: new THREE.Color() }, uColor2: { value: new THREE.Color() }, uCity: { value: new THREE.Color() }, uLand: { value: new THREE.Color() },
     uExposure: { value: 0.55 }, uGlyphs: { value: null },
@@ -267,7 +272,10 @@ export function createParticles(container, { theme, mode = "particle", gas = {},
     }
     renderer.render(scene, camera);
     // screen positions (CSS px) of the map anchors, for the From/Based labels
-    state.anchors = mapAnchors.map((a) => { tmp.copy(a).applyMatrix4(group.matrixWorld).project(camera); return { x: (tmp.x * 0.5 + 0.5) * W, y: (0.5 - tmp.y * 0.5) * H }; });
+    const toScreen = (x, y) => { tmp.set(x, y, 0).applyMatrix4(group.matrixWorld).project(camera); return { x: (tmp.x * 0.5 + 0.5) * W, y: (0.5 - tmp.y * 0.5) * H }; };
+    state.anchors = mapAnchors.map((a) => toScreen(a.x, a.y));
+    // screen rectangles of the map pictures, for the photo layer
+    state.mapRects = mapRects.map((rc) => { if (!rc) return null; const a = toScreen(rc[0], rc[1]), b = toScreen(rc[2], rc[3]); return { l: a.x, t: a.y, w: b.x - a.x, h: b.y - a.y }; });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

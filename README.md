@@ -26,7 +26,14 @@ Four themes, each with its own colours and effects, all editable under **Themes 
 | Black & Neon | black page, glowing cyan-to-magenta particles, glowing text |
 | Matrix | digital rain behind the page, particles drawn as code glyphs that rain down between pages and on load, text that decodes itself, monospace font |
 
-**Night-view maps** (dark themes): India and the UAE are drawn as seen from orbit at night, with dim land and glowing cities (and the UAE's main highways) in a configurable city-light colour.
+**Map pages** can each use, chosen in the admin under **4 & 5 · Maps**:
+- **NASA night view** (default): NASA's Black Marble satellite imagery of the Earth at night (VIIRS, 2016, from NASA GIBS; credits in `public/img/maps/CREDITS.txt`), clipped to the country outline or shown whole. The particles are sampled from the real city lights.
+- **Outline drawing**: the drawn country outline.
+- **Custom map**: upload any map or picture; click it to place the label pin.
+
+Each can be shown as the photo with particles on top, particles only, or the photo only, with adjustable photo opacity. Particles can gather on bright parts (night images) or dark parts (light maps).
+
+**Night-view maps** (dark themes, outline maps): India and the UAE are drawn as seen from orbit at night, with dim land and glowing cities (and the UAE's main highways) in a configurable city-light colour.
 
 **Display mode** (whole page): **Particle**, the original crisp particles and sliding text, or **Gaseous**, where every shape turns to slowly curling smoke, a soft coloured mist drifts behind the page and text blurs into focus. **Auto** alternates between the two at an interval you set.
 

@@ -148,6 +148,69 @@ function withLights(n, polys, opts, cities, roads, clusterShare, r) {
   return pts;
 }
 
+// Projection and outline of each map page (shared by the drawn outline and the NASA imagery).
+const MAP_OPTS = {
+  india: { polys: [INDIA], lon0: 67.5, lat0: 36.6, k: 13.5, w: 440, h: 420, height: 1.8, anchors: [[78.5, 22.5]] },
+  uae: { polys: [UAE], islands: UAE_ISLANDS, lon0: 51.3, lat0: 26.3, k: 118, w: 600, h: 480, height: 1.35, anchors: UAE_CITIES },
+};
+// NASA Black Marble night imagery (VIIRS, 2016) shipped with the site, with the lon/lat bounds of each crop.
+export const NASA_MAPS = {
+  india: { image: "/img/maps/india-night.jpg", bounds: [67.5, 98.5, 6, 37] }, // west, east, south, north
+  uae: { image: "/img/maps/uae-night.jpg", bounds: [51.3, 56.7, 22.4, 26.4] },
+};
+// Country outline as percentages of the NASA crop, for clipping the photo to the country (CSS clip-path).
+export function outlineClip(which) {
+  const [w, e, s, n] = NASA_MAPS[which].bounds;
+  return `polygon(${MAP_OPTS[which].polys[0].map(([lon, lat]) => `${(((lon - w) / (e - w)) * 100).toFixed(2)}% ${(((n - lat) / (n - s)) * 100).toFixed(2)}%`).join(",")})`;
+}
+
+// A map made from a picture: particles gather where the picture is bright (where it is dark with `invert`),
+// the land keeps a faint scatter, and each particle's brightness drives the night-light colouring.
+// "nasa" pictures are placed by lon/lat with the same projection as the drawn outline (and can be clipped to
+// the country); "custom" pictures fill the frame and the label pin sits at (pinX, pinY) of the picture.
+export function mapFromImage(n, img, which, { source, mask = true, invert = false, pinX = 0.5, pinY = 0.5 }, r = rng(53)) {
+  const o = MAP_OPTS[which], f = 3, cv = document.createElement("canvas"); let W, H, P, rect, bbox, anchors, height;
+  if (source === "nasa") {
+    W = o.w * f; H = o.h * f; const cosLat = Math.cos((((o.lat0 - o.h / 2 / o.k) * Math.PI) / 180));
+    P = ([lon, lat]) => [((lon - o.lon0) * o.k * cosLat + 20) * f, ((o.lat0 - lat) * o.k + 20) * f];
+    const [bw, be, bs, bn] = NASA_MAPS[which].bounds, [x0, y0] = P([bw, bn]), [x1, y1] = P([be, bs]);
+    rect = [x0, y0, x1, y1]; anchors = o.anchors.map(P); height = o.height;
+    if (mask) { const pts = o.polys.flat().map(P); bbox = [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))]; }
+    else bbox = rect;
+  } else {
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, sc = Math.min(1200 / iw, 1200 / ih, 4);
+    W = Math.round(iw * sc); H = Math.round(ih * sc); rect = bbox = [0, 0, W, H]; anchors = [[pinX * W, pinY * H]]; height = null;
+  }
+  cv.width = W; cv.height = H; const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.save();
+  if (source === "nasa" && mask) {
+    ctx.beginPath(); for (const poly of o.polys) poly.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    for (const [lon, lat, rad] of o.islands || []) { const [x, y] = P([lon, lat]); ctx.moveTo(x + rad * f * 1.6, y); ctx.arc(x, y, rad * f * 1.6, 0, Math.PI * 2); }
+    ctx.clip();
+  }
+  ctx.drawImage(img, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]); ctx.restore();
+  const px = ctx.getImageData(0, 0, W, H).data;
+  const lumAt = (k) => (0.2126 * px[4 * k] + 0.7152 * px[4 * k + 1] + 0.0722 * px[4 * k + 2]) / 255;
+  const weight = (L) => 0.045 + Math.pow(invert ? 1 - L : L, 1.35) * 2.6, wMax = 2.645;
+  // scale: masked maps match the drawn outline's height; whole pictures fit a 1.9 x 2.7 box
+  const bw = bbox[2] - bbox[0], bh = bbox[3] - bbox[1];
+  const s = height ? height / bh : Math.min(1.9 / bh, 2.7 / bw), cx = (bbox[0] + bbox[2]) / 2, cy = (bbox[1] + bbox[3]) / 2;
+  const out = new Float32Array(3 * n), lights = new Float32Array(n); let i = 0, guard = 0;
+  while (i < n && guard++ < n * 400) {
+    const x = Math.floor(r() * W), y = Math.floor(r() * H), k = y * W + x;
+    if (px[4 * k + 3] < 128) continue;
+    const L = lumAt(k); if (r() * wMax > weight(L)) continue;
+    out[3 * i] = (x - cx + r() - 0.5) * s; out[3 * i + 1] = -(y - cy + r() - 0.5) * s; out[3 * i + 2] = (r() - 0.5) * 0.04;
+    const v = invert ? 1 - L : L; lights[i] = Math.min(1, Math.max(0, (v - 0.07) / 0.5)); i++;
+  }
+  if (i < n * 0.5) throw new Error("picture has too little detail for a map");
+  for (; i < n; i++) { const k = Math.floor(r() * (i - 1)); out[3 * i] = out[3 * k]; out[3 * i + 1] = out[3 * k + 1]; out[3 * i + 2] = out[3 * k + 2]; lights[i] = lights[k]; }
+  const toShape = ([x, y]) => [(x - cx) * s, -(y - cy) * s, 0];
+  out.anchors = anchors.map(toShape); out.lights = lights;
+  out.rect = [...toShape([rect[0], rect[1]]).slice(0, 2), ...toShape([rect[2], rect[3]]).slice(0, 2)]; // left, top, right, bottom (shape space)
+  return out;
+}
+
 // Page 4: India on its own; the label is pinned near the centre of the country.
 export const india = (n, r = rng(45)) => withLights(n, [INDIA], { lon0: 67.5, lat0: 36.6, k: 13.5, w: 440, h: 420, height: 1.8, anchors: [[78.5, 22.5]] }, INDIA_CITIES, [], 0.05, r);
 

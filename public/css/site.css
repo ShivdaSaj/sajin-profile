@@ -208,3 +208,12 @@ body.can-drag.is-dragging .cursor { width: 34px; height: 34px; margin: -17px 0 0
 :root[data-theme="whiteneon"] .work-thumb { border-color: color-mix(in srgb, var(--particle) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent), 0 14px 34px -14px color-mix(in srgb, var(--particle2) 45%, transparent); }
 :root[data-theme="whiteneon"] .pin { background: var(--particle2); box-shadow: 0 0 10px var(--particle2); }
 :root[data-theme="whiteneon"] .ring text { fill: color-mix(in oklab, var(--particle2) 70%, var(--fg)); }
+/* ---------- map pictures ---------- */
+.map-photo { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; opacity: 0; will-change: transform, opacity; object-fit: fill;
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent); mask-image: radial-gradient(closest-side, #000 72%, transparent); }
+.map-photo.clipped { -webkit-mask-image: none; mask-image: none; }
+:root[data-kind="dark"] .map-photo { mix-blend-mode: screen; }
+:root[data-kind="light"] .map-photo { mix-blend-mode: multiply; filter: invert(1) hue-rotate(180deg) saturate(1.4) contrast(1.1); }
+:root[data-mode="gaseous"] .map-photo { filter: blur(1.5px); }
+.map-credit { position: absolute; right: var(--pad); bottom: 22px; margin: 0; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); opacity: .8; }
+.sticky > .map-photo { transform: none; }

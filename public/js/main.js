@@ -3,6 +3,7 @@
 import Lenis from "/vendor/lenis.mjs";
 import { createParticles } from "./particles.js";
 import { createRain } from "./rain.js";
+import { NASA_MAPS, outlineClip } from "./shapes.js";
 
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 function h(tag, attrs = {}, ...kids) {
@@ -58,9 +59,9 @@ function render(c) {
         h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`),
         reducedMotion ? null : h("p", { class: "globe-hint", "aria-hidden": "true" }, "Drag to spin"))),
     h("section", { class: "s s-location s-india", "data-stage": "3", "data-len": "1.25" },
-      h("div", { class: "sticky" }, h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.fromLabel)))),
+      h("div", { class: "sticky" }, mapPhoto(c, "india"), h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.fromLabel)))),
     h("section", { class: "s s-location s-uae", "data-stage": "4", "data-len": "1.25" },
-      h("div", { class: "sticky" }, h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.basedLabel)))),
+      h("div", { class: "sticky" }, mapPhoto(c, "uae"), h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.basedLabel)))),
     h("section", { class: "s s-approach", "data-stage": "5", "data-len": "1.25" },
       h("div", { class: "sticky" }, h("p", { class: "statement small approach reveal-words" }, words(c.approach.text)))),
     h("section", { class: "s s-works", "data-stage": "6", id: "work" },
@@ -82,6 +83,17 @@ function render(c) {
       h("footer", { class: "foot" }, h("span", { class: "foot-left" }, h("span", { class: "mono", "data-tip": c.footer.tip, tabindex: "0" }, initials(name)), `${c.footer.text} — © ${new Date().getFullYear()}`),
         h("a", { class: "foot-right", href: "#top" }, "Back to top ↑"))));
 }
+// ---------- map pictures (NASA night imagery or a custom picture) ----------
+const mapSrc = (cfg, which) => (cfg.source === "nasa" ? NASA_MAPS[which].image : cfg.source === "custom" ? cfg.image : null);
+function mapPhoto(c, which) {
+  const cfg = c.location.maps[which], src = mapSrc(cfg, which); if (!src) return null;
+  const nasa = cfg.source === "nasa";
+  return [cfg.view === "particles" ? null : h("img", { class: `map-photo${nasa && cfg.mask ? " clipped" : ""}`, id: `photo-${which}`, src, alt: "", decoding: "async", "data-op": cfg.photoOpacity,
+      style: nasa && cfg.mask ? `clip-path:${outlineClip(which)}` : null }),
+    nasa ? h("p", { class: "map-credit" }, "Night imagery: NASA Earth Observatory, Black Marble") : null];
+}
+const loadImage = (src) => new Promise((ok) => { if (!src) return ok(null); const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; setTimeout(() => ok(null), 8000); });
+
 const initials = (n) => n.split(/\s+/).map((w) => w[0] || "").join("").slice(0, 2).toUpperCase();
 
 // ---------- scroll model ----------
@@ -128,7 +140,12 @@ function update(y, gl) {
     // anchors are viewport px; each label lives in its own section's sticky box
     const pin = (el, pt) => { if (!el || !pt) return; const top = el.parentElement.getBoundingClientRect().top;
       el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - top).toFixed(1)}px,0)`; };
-    const [ind, uae] = gl.state.anchors || []; pin($("#mapFrom"), ind); pin($("#mapBased"), uae); }
+    const [ind, uae] = gl.state.anchors || []; pin($("#mapFrom"), ind); pin($("#mapBased"), uae);
+    // map photos follow the particle map's position and scale
+    ["india", "uae"].forEach((which, i) => { const el = document.getElementById(`photo-${which}`), rc = gl.state.mapRects?.[i]; if (!el || !rc) return;
+      const top = el.parentElement.getBoundingClientRect().top, vis = +el.closest("section").style.getPropertyValue("--vis") || 0;
+      el.style.transform = `translate3d(${rc.l.toFixed(1)}px,${(rc.t - top).toFixed(1)}px,0)`; el.style.width = `${rc.w.toFixed(1)}px`; el.style.height = `${rc.h.toFixed(1)}px`;
+      el.style.opacity = (vis * (+el.dataset.op || 1)).toFixed(3); }); }
 }
 
 // ---------- preloader ----------
@@ -167,7 +184,8 @@ async function boot() {
   let portrait = null;
   if (content.portrait?.enabled) portrait = await fetch("/api/portrait", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   await document.fonts?.load?.("800 100px Inter").catch(() => {});
-  const gl = createParticles($("#gl"), { theme, mode: TH ? TH.mode : T.mode === "auto" ? "particle" : T.mode, gas: { size: T.gasSize, flow: T.gasFlow }, galaxy: { swirl: T.galaxySwirl, waves: T.galaxyWaves, dust: T.galaxyDust }, portraitData: portrait, reducedMotion, coarse });
+  const maps = {}; await Promise.all(["india", "uae"].map(async (w) => { const cfg = content.location.maps[w]; maps[w] = { cfg, img: await loadImage(mapSrc(cfg, w)) }; }));
+  const gl = createParticles($("#gl"), { maps, theme, mode: TH ? TH.mode : T.mode === "auto" ? "particle" : T.mode, gas: { size: T.gasSize, flow: T.gasFlow }, galaxy: { swirl: T.galaxySwirl, waves: T.galaxyWaves, dust: T.galaxyDust }, portraitData: portrait, reducedMotion, coarse });
   if (!gl) document.body.classList.add("no-webgl");
   const rain = createRain($("#rain"), { reducedMotion }); rain.set(theme);
   TH?.on((id, t) => { theme = t; gl?.setTheme(t, true); rain.set(t);
