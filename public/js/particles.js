@@ -9,7 +9,7 @@ const vertexShader = /* glsl */ `
   attribute vec2 aCity; // night-view light on the India (x) and UAE (y) maps
   uniform float uTime, uStage, uFormation, uRing, uTurb, uSize, uPixelRatio, uGlow, uAspect, uHelixSpin;
   uniform float uNight, uFall, uPulse, uStyleSize, uGas, uGasSize, uGasFlow, uGalaxy, uSwirl, uWaves, uDust;
-  uniform vec2 uPointer; uniform vec4 uRect; uniform vec2 uMapHide;
+  uniform vec2 uPointer; uniform vec4 uRect; uniform vec2 uMapHide; uniform vec2 uImgMap;
   varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick; varying float vKeep; varying float vDust; varying vec3 vPos;
 
   vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
@@ -68,7 +68,7 @@ const vertexShader = /* glsl */ `
     vec2 ndc = gl_Position.xy / gl_Position.w;
     float d = distance(ndc * vec2(uAspect, 1.0), uPointer * vec2(uAspect, 1.0));
     vGlow = uGlow * exp(-d * d * 9.0);
-    vLight = aCity.x * wI + aCity.y * wU; vNightW = uNight * (wI + wU);
+    vLight = aCity.x * wI + aCity.y * wU; vNightW = max(uNight * (wI + wU), uImgMap.x * wI + uImgMap.y * wU); // NASA / picture maps always use night colours
     vGrad = 0.5 + 0.5 * sin(ndc.x * 2.2 - ndc.y * 1.4 + uTime * 0.25 + aRand.z * 0.8);
     vGlyph = mod(floor(aRand.z * 64.0) + floor(uTime * aRand.x * 3.0), 64.0);
     vFlick = 0.72 + 0.28 * sin(uTime * (3.0 + aRand.x * 9.0) + aRand.z * 30.0);
@@ -167,6 +167,7 @@ export function createParticles(container, { theme, mode = "particle", gas = {},
   const u = {
     uTime: { value: 0 }, uStage: { value: 0 }, uFormation: { value: reducedMotion ? 1 : 0 }, uRing: { value: 0 }, uTurb: { value: 0 },
     uSize: { value: 4 }, uPixelRatio: { value: renderer.getPixelRatio() }, uGlow: { value: 0 }, uAspect: { value: 1 }, uHelixSpin: { value: 0 },
+    uImgMap: { value: new THREE.Vector2(indiaShape.rect ? 1 : 0, uaeShape.rect ? 1 : 0) },
     uPointer: { value: new THREE.Vector2(0, 0) }, uMapHide: { value: new THREE.Vector2(maps.india?.cfg.view === "photo" && maps.india.img ? 1 : 0, maps.uae?.cfg.view === "photo" && maps.uae.img ? 1 : 0) }, uRect: { value: new THREE.Vector4(-1, 1, -0.3, 0.3) },
     uNight: { value: 0 }, uFall: { value: 0 }, uPulse: { value: 0 }, uStyleSize: { value: 1 }, uStyle: { value: 0 }, uGradient: { value: 0 }, uGlowAmt: { value: 1 },
     uColor: { value: new THREE.Color() }, uColor2: { value: new THREE.Color() }, uCity: { value: new THREE.Color() }, uLand: { value: new THREE.Color() },
