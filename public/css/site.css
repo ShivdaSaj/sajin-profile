@@ -56,7 +56,7 @@ main { position: relative; z-index: 1; }
 .s-statement .statement { margin-left: 2vw; }
 
 /* globe: two captions riding a ring around the sphere */
-.s-globe .sticky { justify-items: center; }
+.s-globe .sticky { justify-items: center; overflow: hidden; }
 .ring { width: min(76vh, 92vw); aspect-ratio: 1; }
 .ring svg { width: 100%; height: 100%; overflow: visible; will-change: transform; }
 .ring text { fill: var(--fg); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
@@ -66,7 +66,7 @@ main { position: relative; z-index: 1; }
 .s-location .sticky { padding: 0; }
 .map-label { position: absolute; left: 0; top: 0; margin: 0; display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--fg); text-shadow: 0 0 10px var(--bg), 0 0 3px var(--bg); will-change: transform; }
 .map-label.from { translate: -4px -50%; }
-.map-label.based { translate: calc(-100% + 4px) -50%; flex-direction: row-reverse; }
+.map-label.based { translate: -4px -50%; }
 .pin { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); animation: pin 2.4s ease-out infinite; flex: none; }
 @keyframes pin { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
 
@@ -125,12 +125,11 @@ a.work-link:hover .work-title { text-decoration: underline; text-underline-offse
   .s-statement .sticky, .s-approach .sticky, .s-closing .sticky { align-items: end; padding-bottom: 14vh; }
   .s-approach .sticky { justify-items: start; }
   .approach, .s-statement .statement, .closing { margin: 0; }
-  .ring { width: min(48vh, 96vw); }
+  .ring { width: min(46vh, 88vw); }
   .works-head { top: 80px; }
   .track { bottom: 9vh; padding-left: 16vw; }
   .work { width: 70vw; }
   .map-label { font-size: 10.5px; }
-  .map-label.based { translate: -4px 80%; flex-direction: row; }
   .work-desc, .work-tags { opacity: 1; transform: none; }
   .foot { flex-direction: column; gap: 10px; }
 }
@@ -138,3 +137,11 @@ a.work-link:hover .work-title { text-decoration: underline; text-underline-offse
   .char, .echar, .word { transition: none !important; transform: none !important; opacity: 1 !important; }
   .hint-line { animation: none; }
 }
+
+/* globe: drag to spin (the captions turn with it) */
+.globe-hint { position: absolute; left: 50%; bottom: 9vh; transform: translateX(-50%); margin: 0; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+body.can-drag { cursor: grab; }
+body.can-drag.is-dragging { cursor: grabbing; user-select: none; }
+body.can-drag .cursor { width: 46px; height: 46px; margin: -23px 0 0 -23px; background: transparent; border: 1px solid var(--fg); mix-blend-mode: normal; }
+body.can-drag.is-dragging .cursor { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+@media (hover: hover) and (pointer: fine) { body.can-drag, body.can-drag.is-dragging { cursor: none; } }

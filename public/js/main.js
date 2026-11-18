@@ -38,14 +38,15 @@ function render(c) {
           svg("defs", {}, svg("path", { id: "ringPath", d: "M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" })),
           svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "57%" }, c.globe.ringTop)),
           svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "7%" }, c.globe.ringBottom)))),
-        h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`))),
-    h("section", { class: "s s-location", "data-stage": "3", "data-len": "1.3" },
-      h("div", { class: "sticky" },
-        h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), c.location.fromLabel),
-        h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), c.location.basedLabel))),
-    h("section", { class: "s s-approach", "data-stage": "4", "data-len": "1.25" },
+        h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`),
+        reducedMotion ? null : h("p", { class: "globe-hint", "aria-hidden": "true" }, "Drag to spin"))),
+    h("section", { class: "s s-location s-india", "data-stage": "3", "data-len": "1.25" },
+      h("div", { class: "sticky" }, h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), c.location.fromLabel))),
+    h("section", { class: "s s-location s-uae", "data-stage": "4", "data-len": "1.25" },
+      h("div", { class: "sticky" }, h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), c.location.basedLabel))),
+    h("section", { class: "s s-approach", "data-stage": "5", "data-len": "1.25" },
       h("div", { class: "sticky" }, h("p", { class: "statement small approach reveal-words" }, words(c.approach.text)))),
-    h("section", { class: "s s-works", "data-stage": "5", id: "work" },
+    h("section", { class: "s s-works", "data-stage": "6", id: "work" },
       h("div", { class: "sticky" },
         h("div", { class: "works-head" }, h("p", { class: "kicker" }, c.works.kicker), h("p", { class: "works-count" }, h("span", { id: "workIdx" }, "01"), ` / ${pad(works.length)}`)),
         h("ol", { class: "track", id: "track" }, works.map((w, i) => { const href = safeUrl(w.url);
@@ -55,9 +56,9 @@ function render(c) {
             h("span", { class: "work-meta" }, [w.role, w.year].filter(Boolean).join(" · ")),
             w.description ? h("span", { class: "work-desc" }, w.description) : null,
             w.tags.length ? h("span", { class: "work-tags" }, w.tags.map((t) => h("i", {}, t))) : null)); })))),
-    h("section", { class: "s s-closing", "data-stage": "6", "data-len": "1.15" },
+    h("section", { class: "s s-closing", "data-stage": "7", "data-len": "1.15" },
       h("div", { class: "sticky" }, h("p", { class: "statement closing reveal-words" }, words(c.works.closingLine)))),
-    h("section", { class: "s s-contact", "data-stage": "7", id: "contact" },
+    h("section", { class: "s s-contact", "data-stage": "8", id: "contact" },
       h("div", { class: "contact" }, h("p", { class: "kicker" }, c.contact.kicker),
         h("a", { class: "email", id: "email", href: `mailto:${c.contact.email}` }, chars(c.contact.email, "echar")),
         c.contact.links.length ? h("p", { class: "links" }, c.contact.note, " ", c.contact.links.map((l, i) => [i ? h("span", { class: "dot" }, "·") : null, h("a", { href: safeUrl(l.url), target: "_blank", rel: "noopener" }, l.label)])) : null),
@@ -100,15 +101,15 @@ function update(y, gl) {
     for (const p of $$(".reveal-words", s.el)) { const ws = $$(".word", p); const lit = vis < 0.05 ? 0 : Math.round(clamp(prog * 1.6 + 0.15, 0, 1) * ws.length);
       if (+p.dataset.lit !== lit) { p.dataset.lit = lit; ws.forEach((w, i) => w.classList.toggle("on", i < lit || reducedMotion)); } }
   }
-  const ring = $(".ring svg"); if (ring) ring.style.transform = `rotate(${(y * 0.06) % 360}deg)`;
+  const ring = $(".ring svg"); if (ring) ring.style.transform = `rotate(${(((gl?.state.globeAngle || 0) * 180) / Math.PI + y * 0.03) % 360}deg)`;
   document.documentElement.style.setProperty("--bar", clamp((y - vh * 0.6) / (vh * 0.4), 0, 1).toFixed(3));
   const contact = $(".s-contact"); if (contact) contact.classList.toggle("in", y + vh * 0.75 > contact.offsetTop);
   if (gl) { gl.state.stage = stageAt(y); const e = $("#email"); if (e) gl.state.rect = e.getBoundingClientRect();
     // pin the map labels to India and the UAE as the map moves
-    const [ind, uae] = gl.state.anchors || []; const lf = $("#mapFrom"), lb = $("#mapBased");
-    const off = lf ? lf.parentElement.getBoundingClientRect().top : 0; // anchors are viewport px; labels live in the sticky box
-    if (ind && lf) lf.style.transform = `translate3d(${ind.x.toFixed(1)}px,${(ind.y - off).toFixed(1)}px,0)`;
-    if (uae && lb) lb.style.transform = `translate3d(${uae.x.toFixed(1)}px,${(uae.y - off).toFixed(1)}px,0)`; }
+    // anchors are viewport px; each label lives in its own section's sticky box
+    const pin = (el, pt) => { if (!el || !pt) return; const top = el.parentElement.getBoundingClientRect().top;
+      el.style.transform = `translate3d(${pt.x.toFixed(1)}px,${(pt.y - top).toFixed(1)}px,0)`; };
+    const [ind, uae] = gl.state.anchors || []; pin($("#mapFrom"), ind); pin($("#mapBased"), uae); }
 }
 
 // ---------- preloader ----------

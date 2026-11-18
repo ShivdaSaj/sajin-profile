@@ -7,18 +7,19 @@ Live at **https://me.sajinshivdas.online**. A single scroll story told by one We
 | – | Preloader with a % counter | held on a slowly turning ring |
 | 1 | Hero: name left, role right | portrait (your photo, or a silhouette until you upload one); turns towards the pointer and glows |
 | 2 | Statement, revealed word by word | portrait turns away |
-| 3 | Globe with two captions on a rotating ring | spinning sphere |
-| 4 | "From India" and "Based in the UAE", each pinned to its country | map of India and the UAE with an arc between them |
-| 5 | How I work | diagonal two-strand ribbon |
-| 6 | Selected works with thumbnails, sliding along the ribbon | ribbon keeps rolling |
-| 7 | Closing line | spiral |
-| 8 | Contact: email, links, footer | a frame drawn around the email |
+| 3 | Globe with two captions on a ring; drag to spin both | spinning sphere |
+| 4 | "From India", pinned to the map | India |
+| 5 | "Based in the UAE", pinned to Abu Dhabi | zoomed-in UAE with islands and glowing cities |
+| 6 | How I work | diagonal two-strand ribbon |
+| 7 | Selected works with thumbnails, sliding along the ribbon | ribbon keeps rolling |
+| 8 | Closing line | spiral |
+| 9 | Contact: email, links, footer | a frame drawn around the email |
 
 Smooth scrolling is [Lenis](https://github.com/darkroomengineering/lenis) and rendering is [three.js](https://threejs.org) (both MIT, vendored in `public/vendor`). Fonts are self-hosted. Visitors who prefer reduced motion get the content without the preloader or smooth scrolling.
 
 ## Admin panel
 
-`/admin` signs in with `ADMIN_PASSWORD`. You can edit every page (hero, statement, globe captions, map label, how I work, selected works, contact links, footer), the site title, description and colours, and:
+`/admin` signs in with `ADMIN_PASSWORD`. You can edit every page (hero, statement, globe captions, the two map labels, how I work, selected works, contact links, footer), the site title, description and colours, and:
 
 - **Portrait particles:** upload a head-and-shoulders photo. It's converted to particles in your browser, with sliders for background cut-off, contrast and particle count, and a live preview. Only the points are uploaded.
 - **Project thumbnails:** each project can have a thumbnail (uploads are resized to 800×500 in the browser and stored in the data volume). The five starting projects ship with screenshots of their sites.

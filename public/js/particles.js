@@ -4,7 +4,7 @@ import * as THREE from "/vendor/three.module.min.js";
 import * as S from "./shapes.js";
 
 const vertexShader = /* glsl */ `
-  attribute vec3 aGlobe; attribute vec3 aMap; attribute vec3 aHelix; attribute vec3 aSpiral; attribute vec3 aFrame; attribute vec3 aOrigin;
+  attribute vec3 aGlobe; attribute vec3 aIndia; attribute vec3 aUae; attribute vec3 aHelix; attribute vec3 aSpiral; attribute vec3 aFrame; attribute vec3 aOrigin;
   attribute vec4 aRand; // x delay, y size, z phase, w luma
   uniform float uTime, uStage, uFormation, uRing, uTurb, uSize, uPixelRatio, uGlow, uAspect, uHelixSpin;
   uniform vec2 uPointer; uniform vec4 uRect;
@@ -19,8 +19,8 @@ const vertexShader = /* glsl */ `
     vec3 frameP = vec3(mix(uRect.x, uRect.y, aFrame.x), mix(uRect.w, uRect.z, aFrame.y), aFrame.z * 0.03);
     vec3 helixP = rotX(aHelix, uHelixSpin);
     vec3 p = position * (weight(0.0, i, f) + weight(1.0, i, f))
-           + aGlobe * weight(2.0, i, f) + aMap * weight(3.0, i, f)
-           + helixP * (weight(4.0, i, f) + weight(5.0, i, f)) + aSpiral * weight(6.0, i, f) + frameP * weight(7.0, i, f);
+           + aGlobe * weight(2.0, i, f) + aIndia * weight(3.0, i, f) + aUae * weight(4.0, i, f)
+           + helixP * (weight(5.0, i, f) + weight(6.0, i, f)) + aSpiral * weight(7.0, i, f) + frameP * weight(8.0, i, f);
 
     // turbulence while travelling between shapes and while scrolling fast
     float travel = sin(3.14159 * f) * step(0.001, fract(uStage));
@@ -60,13 +60,15 @@ const POSES = [
   { x: 0, y: -0.13, s: 1.05, rx: 0, ry: 0, rz: 0 },       // 0 hero: portrait cropped at the shoulders
   { x: 0, y: -0.13, s: 1.1, rx: 0, ry: -0.6, rz: 0 },     // 1 statement: portrait turns away
   { x: 0, y: 0, s: 0.82, rx: 0.2, ry: 0, rz: -0.15 },     // 2 globe
-  { x: 0, y: 0.02, s: 1.0, rx: 0, ry: 0, rz: 0, ms: 0.42 }, // 3 India / UAE map (ms: smaller on phones so both countries fit)
-  { x: 0, y: 0.06, s: 1.0, rx: 0, ry: 0.25, rz: 0.38 },   // 4 how I work: diagonal ribbon
-  { x: 0, y: -0.04, s: 1.05, rx: 0, ry: 0.4, rz: 0.22 },  // 5 selected works
-  { x: 0.16, y: 0, s: 0.95, rx: -0.5, ry: 0, rz: 0 },     // 6 closing spiral
-  { x: 0, y: 0, s: 1.0, rx: 0, ry: 0, rz: 0 },            // 7 frame (positions are already in view space)
+  { x: 0, y: 0.02, s: 1.0, rx: 0, ry: 0, rz: 0, ms: 0.6 },   // 3 India ("From India")
+  { x: 0, y: 0.03, s: 1.0, rx: 0, ry: 0, rz: 0, ms: 0.56 },  // 4 UAE, zoomed in ("Based in the UAE")
+  { x: 0, y: 0.06, s: 1.0, rx: 0, ry: 0.25, rz: 0.38 },   // 5 how I work: diagonal ribbon
+  { x: 0, y: -0.04, s: 1.05, rx: 0, ry: 0.4, rz: 0.22 },  // 6 selected works
+  { x: 0.16, y: 0, s: 0.95, rx: -0.5, ry: 0, rz: 0 },     // 7 closing spiral
+  { x: 0, y: 0, s: 1.0, rx: 0, ry: 0, rz: 0 },            // 8 frame (positions are already in view space)
 ];
 
+const body = document.body;
 export function createParticles(container, { content, portraitData, reducedMotion, coarse }) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" }); }
@@ -82,8 +84,10 @@ export function createParticles(container, { content, portraitData, reducedMotio
   for (let i = 0; i < n; i++) { rand[4 * i] = r(); rand[4 * i + 1] = Math.pow(r(), 3) * 1.4 + 0.35 * hero.luma[i]; rand[4 * i + 2] = r(); rand[4 * i + 3] = hero.luma[i]; }
   g.setAttribute("position", new THREE.BufferAttribute(hero.positions, 3));
   g.setAttribute("aGlobe", new THREE.BufferAttribute(S.globe(n), 3));
-  const mapShape = S.indiaUae(n); g.setAttribute("aMap", new THREE.BufferAttribute(mapShape, 3));
-  const mapAnchors = (mapShape.anchors || []).map((a) => new THREE.Vector3(...a)), tmp = new THREE.Vector3();
+  const indiaShape = S.india(n), uaeShape = S.uae(n);
+  g.setAttribute("aIndia", new THREE.BufferAttribute(indiaShape, 3)); g.setAttribute("aUae", new THREE.BufferAttribute(uaeShape, 3));
+  const anchor = (shape) => new THREE.Vector3(...(shape.anchors?.[0] || [0, 0, 0])), tmp = new THREE.Vector3();
+  const mapAnchors = [anchor(indiaShape), anchor(uaeShape)];
   g.setAttribute("aHelix", new THREE.BufferAttribute(S.helix(n), 3));
   g.setAttribute("aSpiral", new THREE.BufferAttribute(S.spiral(n), 3));
   g.setAttribute("aFrame", new THREE.BufferAttribute(S.frame(n), 3));
@@ -120,6 +124,14 @@ export function createParticles(container, { content, portraitData, reducedMotio
   let shown = 0; // the stage actually drawn eases towards the scroll stage, so fast scrolls stay smooth
   const lerp = THREE.MathUtils.lerp;
   let last = performance.now(), spin = 0, running = true;
+  let dragging = false, dragX = 0, dragV = 0, dragAdd = 0;
+  const globeActive = () => Math.abs(state.stage - 2) < 0.45;
+  if (!reducedMotion) {
+    addEventListener("pointerdown", (e) => { if (!globeActive() || e.button > 0 || e.target.closest?.("a,button,input,textarea")) return; dragging = true; dragX = e.clientX; dragV = 0; document.body.classList.add("is-dragging"); });
+    addEventListener("pointermove", (e) => { if (!dragging) return; const dx = e.clientX - dragX; dragX = e.clientX; const d = (dx / Math.min(innerWidth, 900)) * Math.PI; dragAdd += d; dragV = d; }, { passive: true });
+    const end = () => { if (dragging) { dragging = false; document.body.classList.remove("is-dragging"); } };
+    addEventListener("pointerup", end); addEventListener("pointercancel", end);
+  }
   function frame(now) {
     if (!running) return;
     const dt = Math.min((now - last) / 1000, 0.05); last = now;
@@ -138,12 +150,15 @@ export function createParticles(container, { content, portraitData, reducedMotio
     ptr.lerp(target, 1 - Math.exp(-dt / 0.35)); presence += (present - presence) * (1 - Math.exp(-dt / (present ? 0.35 : 1.1)));
     const heroW = 1 - THREE.MathUtils.clamp(s, 0, 1);
     const idle = reducedMotion ? 0 : Math.sin(u.uTime.value * 0.17) * 0.12;
-    const globeW = Math.max(0, 1 - Math.abs(s - 2)); spin = (spin + dt * 0.35 * globeW) % (Math.PI * 2);
+    const globeW = Math.max(0, 1 - Math.abs(s - 2));
+    if (!dragging) { dragAdd += dragV; dragV *= Math.exp(-dt / 0.35); } // momentum after release
+    spin = (spin + dt * 0.35 * globeW + dragAdd) % (Math.PI * 2); dragAdd = 0;
+    state.globeAngle = spin; state.globeActive = globeActive(); body.classList.toggle("can-drag", state.globeActive && !reducedMotion);
     group.rotation.set(k("rx") + heroW * -ptr.y * 0.22 * presence, k("ry") + heroW * lerp(idle, ptr.x * 0.35, presence) + spin * globeW, k("rz"));
     u.uHelixSpin.value = reducedMotion ? 0 : u.uTime.value * 0.35;
     u.uPointer.value.copy(ptr); u.uGlow.value = 1.6 * presence * heroW;
     // contact frame: map the email box (CSS pixels) into the group's local space
-    if (state.rect && s > 6) {
+    if (state.rect && s > 7) {
       const R = state.rect, pad = Math.min(R.height * 0.8, 48), vpad = Math.min(R.height * 0.28, 14);
       const toX = (px) => (px / W - 0.5) * viewW, toY = (py) => -(py / H - 0.5) * viewH;
       const gp = group.position, gs = group.scale.x;

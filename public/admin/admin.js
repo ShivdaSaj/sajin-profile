@@ -57,8 +57,8 @@ function thumbEditor(w) {
 
 // ---------- sections ----------
 const SECTIONS = [
-  ["hero", "1 · Hero"], ["portrait", "Portrait particles"], ["statement", "2 · Statement"], ["globe", "3 · Globe"], ["location", "4 · Map"],
-  ["approach", "5 · How I work"], ["works", "6 · Selected works"], ["contact", "7 · Contact & footer"], ["site", "Site & theme"], ["backups", "Backups"],
+  ["hero", "1 · Hero"], ["portrait", "Portrait particles"], ["statement", "2 · Statement"], ["globe", "3 · Globe"], ["location", "4 & 5 · Maps"],
+  ["approach", "6 · How I work"], ["works", "7 · Selected works"], ["contact", "8 · Contact & footer"], ["site", "Site & theme"], ["backups", "Backups"],
 ];
 function draw() {
   drawTop();
@@ -71,8 +71,8 @@ function draw() {
     portrait: drawPortrait,
     statement: () => panel("Statement", "Revealed word by word while the portrait turns away.", field("Text", text(c.statement, "text", { area: true, max: 600 }), null, true)),
     globe: () => panel("Globe", "Two captions ride a ring around the spinning globe.", grid(field("Top caption", text(c.globe, "ringTop", { max: 60 })), field("Bottom caption", text(c.globe, "ringBottom", { max: 60 })))),
-    location: () => panel("Map", "The particles draw India and the UAE with an arc between them. Each label is pinned to its country.",
-      grid(field("Label on India", text(c.location, "fromLabel", { max: 60 })), field("Label on the UAE", text(c.location, "basedLabel", { max: 60 })))),
+    location: () => panel("Maps", "Two pages: page 4 draws India, page 5 a zoomed-in map of the UAE. Each label is pinned to its map (the UAE label sits on Abu Dhabi).",
+      grid(field("Page 4 label (on India)", text(c.location, "fromLabel", { max: 60 })), field("Page 5 label (on the UAE)", text(c.location, "basedLabel", { max: 60 })))),
     approach: () => panel("How I work", "Shown beside the diagonal particle ribbon, revealed word by word.", field("Text", text(c.approach, "text", { area: true, max: 600 }), null, true)),
     works: () => panel("Selected works", "These slide along the ribbon as visitors scroll. Hovering shows the description and tags.",
       grid(field("Heading", text(c.works, "kicker", { max: 60 })), field("Closing line (shown with the spiral)", text(c.works, "closingLine", { max: 140 }))),

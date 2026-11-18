@@ -89,20 +89,35 @@ export function silhouette(n, r = rng(37)) {
   return { positions: pts, luma };
 }
 
-// Outline maps (approximate, lon/lat) for the "where" stage: India, the UAE and a dotted arc between them.
+// Outline maps (approximate lon/lat) for the two "where" pages: India, then a zoomed-in UAE.
 const INDIA = [[68.2,23.7],[68.8,24.3],[70,24.6],[71.1,24.4],[70.4,25.7],[70,26.5],[69.5,27],[70.6,27.9],[71.9,27.9],[72.8,28.9],[73.4,29.9],[74.5,30.9],[74.6,31.9],[75.3,32.3],[74.4,32.8],[73.9,33.7],[74.3,34.6],[73.8,35.1],[75.5,36.2],[77.8,35.5],[78.9,34.3],[78.8,33.5],[79.5,32.6],[78.8,31.3],[80.3,30.4],[81.1,30],[82,28.6],[83.3,27.4],[84.6,27.3],[85.8,26.6],[87.9,26.4],[88.1,27.9],[88.8,27.3],[89.7,26.7],[92,26.8],[92.6,27.8],[94,28.6],[95.4,29],[96.6,28.6],[97.4,27.9],[96.2,27.2],[95.2,26],[94.6,25],[94.2,23.9],[93.4,23],[92.6,21.9],[92.3,23.7],[91.6,24.1],[91.9,24.9],[90.2,25.2],[89.8,26],[88.6,26.2],[88.1,25.4],[88.7,24.3],[88.9,22.9],[89,21.6],[87,21.4],[86.5,20.2],[85,19.3],[84,18.2],[82.3,17],[81.3,16.3],[80.3,15.8],[80.2,13.5],[79.9,12],[79.8,10.3],[78.4,9],[77.5,8.1],[76.6,8.9],[75.8,11.4],[74.8,12.9],[74.1,14.8],[73.4,16.3],[72.8,19],[72.8,21.2],[72.5,22.2],[72.1,21.2],[70.8,20.8],[69.1,22.3],[69.6,22.9],[68.2,23.7]];
-const UAE = [[51.58,24.26],[51.95,23.95],[52.55,24.2],[53.15,24.12],[53.75,24.06],[54.12,24.15],[54.55,24.45],[54.95,24.85],[55.3,25.25],[55.55,25.5],[55.85,25.72],[56.05,26.02],[56.15,25.8],[56.27,25.6],[56.35,25.3],[56.37,24.95],[56.05,24.85],[55.95,24.55],[55.82,24.25],[55.98,24.05],[55.55,23.95],[55.4,23.5],[55.2,22.7],[54,22.6],[52.58,22.94],[51.58,24.26]];
-export function indiaUae(n) {
-  const lon0 = 50.5, lat0 = 37, k = 13; // equirectangular, scaled for a ~1200x420 canvas
-  const P = ([lon, lat]) => [(lon - lon0) * k * Math.cos((22 * Math.PI) / 180) + 30, (lat0 - lat) * k + 10];
-  return sampleCanvas((ctx) => {
-    ctx.fillStyle = "#fff";
-    for (const poly of [INDIA, UAE]) { ctx.beginPath(); poly.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); }
-    // dotted arc from the UAE (Abu Dhabi) to India (Kerala coast)
-    const a = P([54.4, 24.4]), b = P([76.3, 10.0]), c = [(a[0] + b[0]) / 2, Math.min(a[1], b[1]) + 120];
-    for (let t = 0.04; t < 0.97; t += 0.025) { const x = (1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * c[0] + t * t * b[0], y = (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * c[1] + t * t * b[1];
-      ctx.beginPath(); ctx.arc(x, y, 2.6, 0, Math.PI * 2); ctx.fill(); }
-  }, n, { w: 640, h: 400, height: 1.75, depth: 0.04, anchors: [P([79.5, 22.5]), P([54.3, 24.0])] }); // anchors: India, UAE
+// UAE mainland, traced more finely because it fills the screen on its own page.
+const UAE = [[51.58,24.26],[51.73,24.29],[51.85,24.03],[52.05,23.97],[52.3,24.03],[52.58,24.18],[52.9,24.15],[53.2,24.1],[53.45,24.05],[53.7,24.06],[53.95,24.12],[54.12,24.17],[54.3,24.25],[54.45,24.33],[54.55,24.45],[54.68,24.6],[54.85,24.78],[55,24.92],[55.15,25.05],[55.3,25.2],[55.45,25.33],[55.55,25.45],[55.68,25.55],[55.8,25.65],[55.95,25.78],[56.05,25.95],[56.08,26.07],[56.17,25.85],[56.27,25.62],[56.33,25.4],[56.37,25.15],[56.37,24.95],[56.25,24.88],[56.05,24.85],[55.98,24.7],[55.95,24.55],[55.85,24.4],[55.82,24.25],[55.95,24.12],[55.98,24.05],[55.75,24],[55.55,23.95],[55.5,23.75],[55.4,23.5],[55.3,23.1],[55.2,22.7],[54.6,22.65],[54,22.6],[53.3,22.75],[52.58,22.94],[51.95,23.6],[51.58,24.26]];
+const UAE_ISLANDS = [[52.6,24.32,7],[52.87,25.15,5],[52.3,24.5,6],[53.06,24.6,4],[53.6,24.5,4],[54.2,24.6,4],[51.9,24.75,4],[54.45,24.55,5]]; // lon, lat, radius px
+const UAE_CITIES = [[54.37,24.45],[55.27,25.2],[55.4,25.35]]; // Abu Dhabi, Dubai, Sharjah
+
+// Draw lon/lat polygons on a canvas with an equirectangular projection and sample particles from it.
+function mapShape(n, polys, { lon0, lat0, k, w, h, height, anchors = [], draw = () => {} }) {
+  const cosLat = Math.cos((((lat0 - h / 2 / k) * Math.PI) / 180));
+  const P = ([lon, lat]) => [(lon - lon0) * k * cosLat + 20, (lat0 - lat) * k + 20];
+  return sampleCanvas((ctx) => { ctx.fillStyle = "#fff";
+    for (const poly of polys) { ctx.beginPath(); poly.forEach((p, i) => { const [x, y] = P(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath(); ctx.fill(); }
+    draw(ctx, P);
+  }, n, { w, h, height, depth: 0.04, anchors: anchors.map(P) });
+}
+
+// Page 4: India on its own; the label is pinned near the centre of the country.
+export const india = (n) => mapShape(n, [INDIA], { lon0: 67.5, lat0: 36.6, k: 13.5, w: 440, h: 420, height: 1.8, anchors: [[78.5, 22.5]] });
+
+// Page 5: the UAE, zoomed in, with offshore islands; about 6% of the particles cluster on the main cities
+// so they glow. The label is pinned to Abu Dhabi (anchor 0).
+export function uae(n, r = rng(43)) {
+  const pts = mapShape(n, [UAE], { lon0: 51.3, lat0: 26.3, k: 118, w: 600, h: 480, height: 1.35, anchors: UAE_CITIES,
+    draw: (ctx, P) => { for (const [lon, lat, rad] of UAE_ISLANDS) { const [x, y] = P([lon, lat]); ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); } } });
+  const cities = pts.anchors, extra = Math.floor(n * 0.06);
+  for (let j = 0; j < extra; j++) { const i = Math.floor(r() * n), c = cities[j % cities.length], g = () => (r() + r() + r() - 1.5) * 0.028;
+    pts[3 * i] = c[0] + g(); pts[3 * i + 1] = c[1] + g(); pts[3 * i + 2] = g(); }
+  return pts;
 }
 
 // Decode a portrait uploaded through the admin panel ({n, p, l}) and resample it to n points.
