@@ -17,6 +17,9 @@ const MEDIA = path.join(DATA_DIR, "media");
 const BACKUPS = path.join(DATA_DIR, "backups");
 const PORT = Number(process.env.PORT || 8080);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const AUTH_FILE = path.join(DATA_DIR, "auth.json");
+// Recovery switch: ADMIN_FORCE_ENV=true makes the .env password work whatever was set in the panel.
+const FORCE_ENV = process.env.ADMIN_FORCE_ENV === "true" && ADMIN_PASSWORD.length > 0;
 const SESSION_HOURS = Number(process.env.SESSION_HOURS || 12);
 const TRUST_PROXY = process.env.TRUST_PROXY !== "false";
 const SECURE_COOKIE = process.env.COOKIE_SECURE !== "false";
@@ -50,7 +53,31 @@ async function saveContent(next, who) {
 const sessions = new Map(); // token -> expiry
 const attempts = new Map(); // ip -> {count, until}
 const sha = (s) => crypto.createHash("sha256").update(s).digest();
-const checkPassword = (pw) => ADMIN_PASSWORD.length > 0 && crypto.timingSafeEqual(sha(String(pw)), sha(ADMIN_PASSWORD));
+// Admin passwords: the .env ADMIN_PASSWORD and/or one set in the panel (scrypt hash in DATA_DIR/auth.json,
+// never in content.json, which is public). Mode "env": only .env; "panel": only the panel password
+// (it overrides .env); "both": either works.
+const MODES = ["env", "panel", "both"];
+let auth = null;
+try { const a = JSON.parse(fs.readFileSync(AUTH_FILE, "utf8")); if (MODES.includes(a.mode) && /^[0-9a-f]{32}$/.test(a.salt) && /^[0-9a-f]{64}$/.test(a.hash)) auth = a; } catch { /* none yet */ }
+const scrypt = (pw, salt) => new Promise((ok, no) => crypto.scrypt(String(pw), Buffer.from(salt, "hex"), 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? no(e) : ok(k))));
+function effectiveMode() { if (FORCE_ENV || !auth) return "env"; if (!ADMIN_PASSWORD) return "panel"; return auth.mode; }
+const adminEnabled = () => ADMIN_PASSWORD.length > 0 || !!auth;
+async function checkPassword(pw) {
+  const m = effectiveMode(); let ok = false;
+  if (m !== "panel" && ADMIN_PASSWORD) ok = crypto.timingSafeEqual(sha(String(pw)), sha(ADMIN_PASSWORD));
+  if (m !== "env" && auth) ok = crypto.timingSafeEqual(await scrypt(pw, auth.salt), Buffer.from(auth.hash, "hex")) || ok;
+  return ok;
+}
+function authInfo() { return { mode: auth?.mode || "env", effective: effectiveMode(), panelPassword: !!auth, envPassword: ADMIN_PASSWORD.length > 0, forcedEnv: FORCE_ENV, updatedAt: auth?.updatedAt || null }; }
+// Failed password checks (sign-in or re-entering the current password) share one lockout per IP.
+function guard(ip) { const a = attempts.get(ip); if (a && a.count >= 5 && a.until > Date.now()) throw httpError(429, "Too many failed attempts. Try again in 15 minutes."); }
+function fail(ip, what) { const a = attempts.get(ip); attempts.set(ip, { count: (a?.count || 0) + 1, until: Date.now() + 15 * 60000 }); console.warn(`[admin] failed ${what} from ${ip}`); }
+function strongEnough(pw) {
+  if (typeof pw !== "string" || pw.length < 12) return "Use at least 12 characters";
+  if (pw.length > 200) return "Use at most 200 characters";
+  if (new Set(pw).size < 6) return "Use more varied characters";
+  return null;
+}
 const cookies = (req) => Object.fromEntries((req.headers.cookie || "").split(";").map((c) => c.trim().split("=")).filter((x) => x[0]).map(([k, ...v]) => [k, decodeURIComponent(v.join("="))]));
 function isAdmin(req) { const t = cookies(req).sp_session; const exp = t && sessions.get(t); if (!exp) return false; if (exp < Date.now()) { sessions.delete(t); return false; } return true; }
 const clientIp = (req) => (TRUST_PROXY && String(req.headers["x-forwarded-for"] || "").split(",")[0].trim()) || req.socket.remoteAddress || "?";
@@ -78,9 +105,12 @@ async function serveStatic(req, res, pathname) {
   try {
     let data = await fsp.readFile(file);
     // Title, description and colours are rendered into the HTML so the first paint already matches the content.
-    if (file.endsWith(".html")) { const t = content.site.theme;
+    if (file.endsWith(".html")) { const T = content.site.themes, t = T.list[T.default], d = T.list.dark;
+      const vars = (x) => `--bg:${x.bg};--fg:${x.fg};--muted:${x.muted};--accent:${x.accent};color-scheme:${x.kind}`;
       data = data.toString("utf8").replaceAll("{{TITLE}}", esc(content.site.title)).replaceAll("{{DESCRIPTION}}", esc(content.site.description))
-        .replaceAll("{{THEME_STYLE}}", `--bg:${t.bg};--fg:${t.fg};--muted:${t.muted};--accent:${t.accent}`).replaceAll("{{BG}}", t.bg); }
+        .replaceAll("{{THEME_STYLE}}", vars(t)).replaceAll("{{ADMIN_STYLE}}", vars(d)).replaceAll("{{THEME_ID}}", T.default).replaceAll("{{BG}}", t.bg)
+        // read by /js/theme-boot.js before first paint; "<" is escaped so the JSON can't close the script element
+        .replaceAll("{{THEME_DATA}}", JSON.stringify(T).replace(/</g, "\\u003c")); }
     send(res, 200, data, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream", "Cache-Control": file.endsWith(".html") ? "no-cache" : "public, max-age=600" });
   } catch { send(res, 404, "Not found", { "Content-Type": "text/plain" }); }
 }
@@ -100,12 +130,11 @@ async function handle(req, res) {
     try { return send(res, 200, await fsp.readFile(PORTRAIT_FILE), { "Content-Type": "application/json", "Cache-Control": "no-cache" }); } catch { return json(res, 404, { ok: false, error: "No portrait" }); }
   }
 
-  if (p === "/api/admin/status") return json(res, 200, { enabled: ADMIN_PASSWORD.length > 0, authenticated: isAdmin(req) });
+  if (p === "/api/admin/status") return json(res, 200, { enabled: adminEnabled(), authenticated: isAdmin(req) });
   if (p === "/api/admin/login" && req.method === "POST") {
-    if (!ADMIN_PASSWORD) throw httpError(503, "Admin is disabled: set ADMIN_PASSWORD on the server");
-    const a = attempts.get(ip); if (a && a.count >= 5 && a.until > Date.now()) throw httpError(429, "Too many failed attempts. Try again in 15 minutes.");
-    const body = await readJson(req, 4096);
-    if (!checkPassword(body.password)) { attempts.set(ip, { count: (a?.count || 0) + 1, until: Date.now() + 15 * 60000 }); console.warn(`[admin] failed login from ${ip}`); throw httpError(401, "Wrong password"); }
+    if (!adminEnabled()) throw httpError(503, "Admin is disabled: set ADMIN_PASSWORD on the server");
+    guard(ip); const body = await readJson(req, 4096);
+    if (!(await checkPassword(body.password))) { fail(ip, "login"); throw httpError(401, "Wrong password"); }
     attempts.delete(ip); const token = crypto.randomBytes(32).toString("hex"); sessions.set(token, Date.now() + SESSION_HOURS * 3600e3);
     console.log(`[admin] login from ${ip}`); return json(res, 200, { ok: true }, { "Set-Cookie": sessionCookie(token, SESSION_HOURS * 3600) });
   }
@@ -115,6 +144,34 @@ async function handle(req, res) {
     if (!isAdmin(req)) throw httpError(401, "Not signed in");
     if (req.method !== "GET" && req.headers["x-requested-with"] !== "sajin-profile") throw httpError(403, "Missing CSRF header");
     if (p === "/api/admin/content" && req.method === "GET") return json(res, 200, content);
+    if (p === "/api/admin/auth" && req.method === "GET") return json(res, 200, authInfo());
+    if (p === "/api/admin/auth" && (req.method === "PUT" || req.method === "DELETE")) {
+      guard(ip); const body = await readJson(req, 4096);
+      if (!(await checkPassword(body.currentPassword))) { fail(ip, "password check"); throw httpError(401, "Current password is wrong"); }
+      let next;
+      if (req.method === "DELETE") { // forget the panel password and go back to the .env one
+        if (!ADMIN_PASSWORD) throw httpError(400, "No .env password is set, so removing the panel password would lock you out");
+        next = null;
+      } else {
+        const mode = body.mode ?? auth?.mode ?? "both"; if (!MODES.includes(mode)) throw httpError(400, "Mode must be env, panel or both");
+        next = auth ? { ...auth } : null;
+        if (body.newPassword != null && body.newPassword !== "") {
+          const weak = strongEnough(body.newPassword); if (weak) throw httpError(400, weak);
+          const salt = crypto.randomBytes(16).toString("hex"); next = { salt, hash: (await scrypt(body.newPassword, salt)).toString("hex") };
+        }
+        if (!next && mode !== "env") throw httpError(400, "Set a panel password first");
+        if (!next) throw httpError(400, "Nothing to change: no panel password is set, so the .env password is already the only one");
+        if (mode !== "panel" && !ADMIN_PASSWORD) throw httpError(400, "No .env password is set on the server, so only the panel password can be used");
+        Object.assign(next, { mode, updatedAt: new Date().toISOString() });
+      }
+      if (next) { const tmp = `${AUTH_FILE}.tmp`; await fsp.writeFile(tmp, JSON.stringify(next), { mode: 0o600 }); await fsp.rename(tmp, AUTH_FILE); }
+      else await fsp.unlink(AUTH_FILE).catch(() => {});
+      auth = next;
+      // other signed-in sessions must sign in again with the new rules
+      const mine = cookies(req).sp_session; for (const k of sessions.keys()) if (k !== mine) sessions.delete(k);
+      console.log(`[admin] password settings changed by ${ip} (mode ${effectiveMode()})`);
+      return json(res, 200, authInfo());
+    }
     if (p === "/api/admin/content" && req.method === "PUT") { const next = validateContent(await readJson(req, 512 * 1024), SEED, true); next.portrait = content.portrait; await saveContent(next, ip); return json(res, 200, { ok: true, updatedAt: next.updatedAt }); }
     if (p === "/api/admin/portrait" && req.method === "PUT") {
       const pts = validatePortrait(await readJson(req, 4 * 1024 * 1024));
@@ -147,5 +204,5 @@ async function handle(req, res) {
 
 const server = http.createServer((req, res) => { handle(req, res).catch((e) => { if (!e.status) console.error(e); if (!res.headersSent) json(res, e.status || 500, { ok: false, error: e.status ? e.message : "Internal error" }); }); });
 server.headersTimeout = 20000; server.requestTimeout = 60000;
-server.listen(PORT, () => console.log(`Sajin profile listening on :${server.address().port} (admin ${ADMIN_PASSWORD ? "enabled" : "DISABLED, set ADMIN_PASSWORD"}, data ${DATA_DIR})`));
+server.listen(PORT, () => console.log(`Sajin profile listening on :${server.address().port} (admin ${adminEnabled() ? `enabled, password mode ${effectiveMode()}` : "DISABLED, set ADMIN_PASSWORD"}, data ${DATA_DIR})`));
 process.on("SIGTERM", () => server.close(() => process.exit(0)));

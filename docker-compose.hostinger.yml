@@ -11,6 +11,7 @@ services:
     environment:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       - APP_REF=${APP_REF:-main}
+      - ADMIN_FORCE_ENV=${ADMIN_FORCE_ENV:-false}
       - DATA_DIR=/home/node/data
       - NODE_ENV=production
       - PORT=8080

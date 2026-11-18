@@ -64,3 +64,21 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .thumb-edit { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .thumb-prev { width: 192px; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; border-radius: 8px; border: 1px solid var(--line); }
 .thumb-prev.empty { display: grid; place-items: center; font-size: 12px; color: var(--muted); background: var(--card); }
+
+select { width: 100%; font: inherit; font-size: 14.5px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+.range { display: flex; align-items: center; gap: 10px; }
+.range output { font-size: 12.5px; color: var(--muted); min-width: 2.5em; font-variant-numeric: tabular-nums; }
+.checks { display: grid; gap: 8px; align-content: center; }
+.panel h3, .item h3 { margin: 4px 0 -4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.theme-card.off { opacity: .6; }
+.theme-card .item-head { flex-wrap: wrap; gap: 10px; }
+.swatch { width: 34px; height: 22px; border-radius: 6px; background: radial-gradient(circle at 35% 50%, var(--b) 0 3px, transparent 4px), radial-gradient(circle at 65% 50%, var(--c) 0 3px, transparent 4px), var(--a); box-shadow: inset 0 0 0 1px var(--line); }
+.kind { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.modes { display: grid; gap: 8px; }
+.mode { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; }
+.mode span { display: grid; gap: 2px; } .mode small { color: var(--muted); font-size: 12.5px; }
+.mode:has(input:disabled) { opacity: .45; cursor: default; }
+.mode:has(input:checked) { border-color: var(--accent); }
+.facts { margin: 0; padding: 12px 16px 12px 30px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); display: grid; gap: 4px; font-size: 14px; }
+.facts .warn { color: #f3c969; }
+.grid { align-items: start; }

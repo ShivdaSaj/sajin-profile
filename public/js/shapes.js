@@ -106,19 +106,55 @@ function mapShape(n, polys, { lon0, lat0, k, w, h, height, anchors = [], draw = 
   }, n, { w, h, height, depth: 0.04, anchors: anchors.map(P) });
 }
 
-// Page 4: India on its own; the label is pinned near the centre of the country.
-export const india = (n) => mapShape(n, [INDIA], { lon0: 67.5, lat0: 36.6, k: 13.5, w: 440, h: 420, height: 1.8, anchors: [[78.5, 22.5]] });
+// Night view: each map particle gets a light value (0..1) from its distance to the cities and roads, so the
+// dark themes can draw the maps as seen from orbit at night. Cities are [lon, lat, brightness, radius in degrees].
+const INDIA_CITIES = [[77.2,28.61,1,.5],[72.88,19.08,1,.42],[88.36,22.57,.9,.4],[80.27,13.08,.85,.34],[77.59,12.97,.85,.36],[78.49,17.39,.8,.34],
+  [72.57,23.02,.7,.3],[73.86,18.52,.65,.28],[75.79,26.91,.55,.26],[80.95,26.85,.55,.26],[76.27,9.93,.65,.24],[76.95,8.52,.55,.2],[80.33,26.45,.45,.22],
+  [79.09,21.15,.45,.22],[85.14,25.6,.45,.22],[72.83,21.17,.5,.22],[77.41,23.26,.4,.2],[83.22,17.69,.4,.2],[91.74,26.14,.38,.2],[76.78,30.73,.42,.2],
+  [76.96,11.0,.4,.2],[75.86,22.72,.4,.2],[75.78,11.25,.38,.18],[78.12,9.93,.35,.18],[82.97,25.32,.35,.18],[74.8,34.08,.3,.18],[85.82,20.3,.35,.18],
+  [74.87,31.63,.35,.18],[73.02,26.24,.3,.18],[81.63,21.25,.3,.18],[86.43,23.8,.3,.16],[74.12,15.49,.3,.16]];
+const UAE_LIGHTS = [[54.37,24.45,1,.1],[55.27,25.2,1,.13],[55.4,25.33,.85,.07],[55.45,25.4,.6,.045],[55.55,25.56,.4,.035],[55.95,25.79,.6,.055],
+  [56.33,25.12,.5,.045],[56.35,25.34,.35,.03],[55.76,24.21,.7,.075],[52.73,24.11,.45,.04],[53.7,23.68,.3,.03],[55.06,25.0,.75,.06],[54.5,24.36,.6,.05],[54.62,24.47,.5,.04]];
+const UAE_ROADS = [[[54.37,24.45],[54.62,24.47],[55.06,25.0],[55.27,25.2],[55.4,25.33],[55.95,25.79]],[[55.27,25.2],[55.76,24.21],[54.37,24.45]],
+  [[54.37,24.45],[53.7,23.68]],[[54.37,24.45],[52.73,24.11]],[[55.55,25.56],[56.33,25.12]]];
 
-// Page 5: the UAE, zoomed in, with offshore islands; about 6% of the particles cluster on the main cities
-// so they glow. The label is pinned to Abu Dhabi (anchor 0).
-export function uae(n, r = rng(43)) {
-  const pts = mapShape(n, [UAE], { lon0: 51.3, lat0: 26.3, k: 118, w: 600, h: 480, height: 1.35, anchors: UAE_CITIES,
-    draw: (ctx, P) => { for (const [lon, lat, rad] of UAE_ISLANDS) { const [x, y] = P([lon, lat]); ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); } } });
-  const cities = pts.anchors, extra = Math.floor(n * 0.06);
-  for (let j = 0; j < extra; j++) { const i = Math.floor(r() * n), c = cities[j % cities.length], g = () => (r() + r() + r() - 1.5) * 0.028;
-    pts[3 * i] = c[0] + g(); pts[3 * i + 1] = c[1] + g(); pts[3 * i + 2] = g(); }
+function nightLights(pts, cities, perDeg, roads = [], r = rng(47)) {
+  const n = pts.length / 3, out = new Float32Array(n);
+  const segDist = (x, y, a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy); };
+  for (let i = 0; i < n; i++) {
+    const x = pts[3 * i], y = pts[3 * i + 1]; let L = 0;
+    for (const [cx, cy, w, rad] of cities) { const s = rad * perDeg, d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (s * s); if (d2 < 9) L = Math.max(L, w * Math.exp(-d2)); }
+    for (const road of roads) for (let j = 1; j < road.length; j++) { const d = segDist(x, y, road[j - 1], road[j]) / (0.018 * perDeg); if (d < 3) L = Math.max(L, 0.42 * Math.exp(-d * d) * (0.6 + 0.4 * r())); }
+    if (L < 0.12 && r() < 0.045) L = 0.16 + r() * 0.3; // scattered towns
+    out[i] = Math.min(1, L);
+  }
+  return out;
+}
+// Map one city list through the projection: anchors 1 and 2 are one degree of latitude apart, for scale.
+function withLights(n, polys, opts, cities, roads, clusterShare, r) {
+  const a0 = opts.anchors[0], cal = [[a0[0], a0[1]], [a0[0], a0[1] - 1]];
+  const pts = mapShape(n, polys, { ...opts, anchors: [...opts.anchors, ...cal, ...cities.map((c) => [c[0], c[1]]), ...roads.flat()] });
+  const k = opts.anchors.length, perDeg = Math.abs(pts.anchors[k][1] - pts.anchors[k + 1][1]);
+  const proj = pts.anchors.slice(k + 2, k + 2 + cities.length).map((p, i) => [p[0], p[1], cities[i][2], cities[i][3]]);
+  let o = k + 2 + cities.length; const roadsP = roads.map((rd) => rd.map(() => pts.anchors[o++]));
+  // a share of the particles gathers on the cities (weighted by brightness), so they read as dense lights
+  const total = proj.reduce((s, c) => s + c[2], 0), extra = Math.floor(n * clusterShare);
+  for (let j = 0; j < extra; j++) { let pick = r() * total, c = proj[0]; for (const q of proj) { pick -= q[2]; if (pick <= 0) { c = q; break; } }
+    const i = Math.floor(r() * n), s = c[3] * perDeg * 0.7, g = () => (r() + r() + r() - 1.5) * s;
+    pts[3 * i] = c[0] + g(); pts[3 * i + 1] = c[1] + g(); pts[3 * i + 2] = (r() - 0.5) * 0.02; }
+  pts.lights = nightLights(pts, proj, perDeg, roadsP, r);
+  pts.anchors = pts.anchors.slice(0, k);
   return pts;
 }
+
+// Page 4: India on its own; the label is pinned near the centre of the country.
+export const india = (n, r = rng(45)) => withLights(n, [INDIA], { lon0: 67.5, lat0: 36.6, k: 13.5, w: 440, h: 420, height: 1.8, anchors: [[78.5, 22.5]] }, INDIA_CITIES, [], 0.05, r);
+
+// Page 5: the UAE, zoomed in, with offshore islands; particles cluster on the cities so they glow.
+// The label is pinned to Abu Dhabi (anchor 0).
+export const uae = (n, r = rng(43)) => withLights(n, [UAE], { lon0: 51.3, lat0: 26.3, k: 118, w: 600, h: 480, height: 1.35, anchors: UAE_CITIES,
+  draw: (ctx, P) => { for (const [lon, lat, rad] of UAE_ISLANDS) { const [x, y] = P([lon, lat]); ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill(); } } }, UAE_LIGHTS, UAE_ROADS, 0.07, r);
 
 // Decode a portrait uploaded through the admin panel ({n, p, l}) and resample it to n points.
 export function portrait(data, n, r = rng(29)) {

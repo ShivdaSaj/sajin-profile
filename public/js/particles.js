@@ -6,9 +6,11 @@ import * as S from "./shapes.js";
 const vertexShader = /* glsl */ `
   attribute vec3 aGlobe; attribute vec3 aIndia; attribute vec3 aUae; attribute vec3 aHelix; attribute vec3 aSpiral; attribute vec3 aFrame; attribute vec3 aOrigin;
   attribute vec4 aRand; // x delay, y size, z phase, w luma
+  attribute vec2 aCity; // night-view light on the India (x) and UAE (y) maps
   uniform float uTime, uStage, uFormation, uRing, uTurb, uSize, uPixelRatio, uGlow, uAspect, uHelixSpin;
+  uniform float uNight, uFall, uPulse, uStyleSize;
   uniform vec2 uPointer; uniform vec4 uRect;
-  varying float vAlpha; varying float vGlow;
+  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick;
 
   vec3 rotX(vec3 p, float a) { float c = cos(a), s = sin(a); return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z); }
   float weight(float k, float i, float f) { return (1.0 - f) * step(abs(k - i), 0.5) + f * step(abs(k - i - 1.0), 0.5); }
@@ -18,20 +20,25 @@ const vertexShader = /* glsl */ `
     float f = smoothstep(0.0, 1.0, clamp((fract(uStage) - aRand.x * 0.16) / 0.84, 0.0, 1.0)); // lightly staggered morph
     vec3 frameP = vec3(mix(uRect.x, uRect.y, aFrame.x), mix(uRect.w, uRect.z, aFrame.y), aFrame.z * 0.03);
     vec3 helixP = rotX(aHelix, uHelixSpin);
+    float wI = weight(3.0, i, f), wU = weight(4.0, i, f);
     vec3 p = position * (weight(0.0, i, f) + weight(1.0, i, f))
-           + aGlobe * weight(2.0, i, f) + aIndia * weight(3.0, i, f) + aUae * weight(4.0, i, f)
+           + aGlobe * weight(2.0, i, f) + aIndia * wI + aUae * wU
            + helixP * (weight(5.0, i, f) + weight(6.0, i, f)) + aSpiral * weight(7.0, i, f) + frameP * weight(8.0, i, f);
 
     // turbulence while travelling between shapes and while scrolling fast
     float travel = sin(3.14159 * f) * step(0.001, fract(uStage));
-    float amp = travel * 0.16 + uTurb * 0.06;
+    float amp = travel * 0.16 * (1.0 - uFall * 0.75) + uTurb * 0.06 + uPulse * 0.22;
     float t = uTime * 0.6 + aRand.z * 6.2831;
     p += amp * vec3(sin(t + p.y * 3.1), cos(t * 1.3 + p.x * 2.7), sin(t * 0.7 + p.z * 4.0));
+    // "rain" transition: between shapes the particles drop like falling code, then re-form
+    p.y -= uFall * travel * (0.3 + aRand.x * 1.2);
     p += 0.006 * vec3(sin(uTime * 1.7 + aRand.z * 40.0), cos(uTime * 1.3 + aRand.z * 31.0), 0.0); // idle shimmer
 
     // first appearance: from a scattered shell into the shape, each particle on its own delay
     float form = smoothstep(aRand.x * 0.55, aRand.x * 0.55 + 0.45, uFormation);
-    p = mix(aOrigin, p, form);
+    // with the rain transition the particles first fall in from above the view, in columns
+    vec3 origin = mix(aOrigin, vec3(p.x + (aRand.z - 0.5) * 0.04, p.y + 2.6 + aRand.x * 3.2, p.z), uFall);
+    p = mix(origin, p, form);
     // preloader: particles held on a slowly turning ring
     float ra = aRand.z * 6.2831 + uTime * 0.15;
     vec3 ring = vec3(cos(ra), sin(ra) + 0.12, 0.0) * (0.62 + (aRand.x - 0.5) * 0.05);
@@ -42,18 +49,41 @@ const vertexShader = /* glsl */ `
     vec2 ndc = gl_Position.xy / gl_Position.w;
     float d = distance(ndc * vec2(uAspect, 1.0), uPointer * vec2(uAspect, 1.0));
     vGlow = uGlow * exp(-d * d * 9.0);
-    gl_PointSize = uSize * (0.55 + aRand.y) * uPixelRatio * (1.0 + vGlow * 1.2) / -mv.z;
+    vLight = aCity.x * wI + aCity.y * wU; vNightW = uNight * (wI + wU);
+    vGrad = 0.5 + 0.5 * sin(ndc.x * 2.2 - ndc.y * 1.4 + uTime * 0.25 + aRand.z * 0.8);
+    vGlyph = mod(floor(aRand.z * 64.0) + floor(uTime * aRand.x * 3.0), 64.0);
+    vFlick = 0.72 + 0.28 * sin(uTime * (3.0 + aRand.x * 9.0) + aRand.z * 30.0);
+    float night = mix(1.0, mix(0.95, 2.1, vLight), vNightW); // lit cities are drawn larger on the night maps
+    gl_PointSize = uSize * uStyleSize * night * (0.55 + aRand.y) * uPixelRatio * (1.0 + vGlow * 1.2) / -mv.z;
     vAlpha = (0.32 + 0.68 * aRand.w) * mix(0.5, 1.0, form);
   }`;
 
 const fragmentShader = /* glsl */ `
-  uniform vec3 uColor; uniform float uExposure; varying float vAlpha; varying float vGlow;
+  uniform vec3 uColor, uColor2, uCity, uLand; uniform float uExposure, uGradient, uStyle, uGlowAmt; uniform sampler2D uGlyphs;
+  varying float vAlpha; varying float vGlow; varying float vLight; varying float vNightW; varying float vGrad; varying float vGlyph; varying float vFlick;
   void main() {
-    float d = length(gl_PointCoord - 0.5);
-    float a = smoothstep(0.5, 0.05, d) * vAlpha * uExposure;
+    vec2 pc = gl_PointCoord; float d = length(pc - 0.5), a;
+    if (uStyle < 0.5) a = smoothstep(0.5, 0.05, d);                                       // soft dot
+    else if (uStyle < 1.5) a = smoothstep(0.5, 0.0, d) * 0.35 * uGlowAmt + exp(-d * d * 22.0); // neon: hot core and a halo
+    else { vec2 cell = vec2(mod(vGlyph, 8.0), floor(vGlyph / 8.0)); a = texture2D(uGlyphs, (cell + pc) / 8.0).a * vFlick; } // code glyph
+    a *= vAlpha * uExposure;
+    vec3 col = mix(uColor, uColor2, vGrad * uGradient);
+    // night maps: dim land, warm city lights
+    col = mix(col, mix(uLand, uCity, smoothstep(0.08, 0.6, vLight)), vNightW);
+    a *= mix(1.0, mix(0.6, 1.8, vLight), vNightW);
     if (a < 0.003) discard;
-    gl_FragColor = vec4(uColor * (1.0 + vGlow * 0.8), a);
+    gl_FragColor = vec4(col * (1.0 + vGlow * 0.8 * uGlowAmt), a);
   }`;
+
+// 8x8 atlas of code glyphs (half-width katakana, digits, symbols), drawn mirrored, for the "glyph" particle style.
+function glyphAtlas() {
+  const c = document.createElement("canvas"); c.width = c.height = 512; const x = c.getContext("2d");
+  const chars = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789Z:=*+<>|";
+  x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle"; x.font = '600 50px ui-monospace, "MS Gothic", "Noto Sans Mono CJK JP", monospace';
+  for (let i = 0; i < 64; i++) { x.save(); x.translate((i % 8) * 64 + 32, Math.floor(i / 8) * 64 + 34); x.scale(-1, 1); x.fillText(chars[i % chars.length], 0, 0); x.restore(); }
+  const t = new THREE.CanvasTexture(c); t.flipY = false; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; return t;
+}
+const STYLES = { soft: 0, glow: 1, glyph: 2 }, STYLE_SIZE = { soft: 1, glow: 1.35, glyph: 2.1 };
 
 // Per-stage pose of the whole cloud: x/y offset (fraction of view width/height), scale, rotations.
 const POSES = [
@@ -69,7 +99,7 @@ const POSES = [
 ];
 
 const body = document.body;
-export function createParticles(container, { content, portraitData, reducedMotion, coarse }) {
+export function createParticles(container, { theme, portraitData, reducedMotion, coarse }) {
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" }); }
   catch (e) { console.warn("WebGL unavailable:", e); return null; }
@@ -86,6 +116,8 @@ export function createParticles(container, { content, portraitData, reducedMotio
   g.setAttribute("aGlobe", new THREE.BufferAttribute(S.globe(n), 3));
   const indiaShape = S.india(n), uaeShape = S.uae(n);
   g.setAttribute("aIndia", new THREE.BufferAttribute(indiaShape, 3)); g.setAttribute("aUae", new THREE.BufferAttribute(uaeShape, 3));
+  const city = new Float32Array(2 * n); for (let i = 0; i < n; i++) { city[2 * i] = indiaShape.lights[i]; city[2 * i + 1] = uaeShape.lights[i]; }
+  g.setAttribute("aCity", new THREE.BufferAttribute(city, 2));
   const anchor = (shape) => new THREE.Vector3(...(shape.anchors?.[0] || [0, 0, 0])), tmp = new THREE.Vector3();
   const mapAnchors = [anchor(indiaShape), anchor(uaeShape)];
   g.setAttribute("aHelix", new THREE.BufferAttribute(S.helix(n), 3));
@@ -99,9 +131,31 @@ export function createParticles(container, { content, portraitData, reducedMotio
     uTime: { value: 0 }, uStage: { value: 0 }, uFormation: { value: reducedMotion ? 1 : 0 }, uRing: { value: 0 }, uTurb: { value: 0 },
     uSize: { value: 4 }, uPixelRatio: { value: renderer.getPixelRatio() }, uGlow: { value: 0 }, uAspect: { value: 1 }, uHelixSpin: { value: 0 },
     uPointer: { value: new THREE.Vector2(0, 0) }, uRect: { value: new THREE.Vector4(-1, 1, -0.3, 0.3) },
-    uColor: { value: new THREE.Color(content.site.theme.particle) }, uExposure: { value: coarse ? 0.75 : 0.55 },
+    uNight: { value: 0 }, uFall: { value: 0 }, uPulse: { value: 0 }, uStyleSize: { value: 1 }, uStyle: { value: 0 }, uGradient: { value: 0 }, uGlowAmt: { value: 1 },
+    uColor: { value: new THREE.Color() }, uColor2: { value: new THREE.Color() }, uCity: { value: new THREE.Color() }, uLand: { value: new THREE.Color() },
+    uExposure: { value: 0.55 }, uGlyphs: { value: null },
   };
   const mat = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms: u, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+
+  // ---- themes: colours and numbers ease towards the new theme; the particle style swaps mid-burst ----
+  const base = coarse ? 0.75 : 0.55;
+  const goal = { color: new THREE.Color(), color2: new THREE.Color(), city: new THREE.Color(), land: new THREE.Color(), night: 0, fall: 0, gradient: 0, glow: 1, exposure: base, size: 1 };
+  let swapTimer = 0;
+  function setTheme(t, animate = true) {
+    goal.color.set(t.particle); goal.color2.set(t.particle2); goal.city.set(t.cityLight); goal.land.set(t.muted).lerp(goal.color, 0.25); // dim land under the night lights
+    goal.night = t.nightMaps ? 1 : 0; goal.fall = t.transition === "rain" && !reducedMotion ? 1 : 0; goal.gradient = t.gradient ? 1 : 0; goal.glow = t.glow;
+    goal.exposure = base * (t.kind === "light" ? 1.6 : t.style === "glow" ? 1.25 : t.style === "glyph" ? 2 : 1); goal.size = STYLE_SIZE[t.style] || 1;
+    const swap = () => {
+      if (t.style === "glyph" && !u.uGlyphs.value) u.uGlyphs.value = glyphAtlas();
+      u.uStyle.value = STYLES[t.style] || 0;
+      const blend = t.kind === "light" ? THREE.NormalBlending : THREE.AdditiveBlending; if (mat.blending !== blend) { mat.blending = blend; mat.needsUpdate = true; }
+    };
+    clearTimeout(swapTimer);
+    if (animate && !reducedMotion) { u.uPulse.value = 1; swapTimer = setTimeout(swap, 180); }
+    else { swap(); u.uColor.value.copy(goal.color); u.uColor2.value.copy(goal.color2); u.uCity.value.copy(goal.city); u.uLand.value.copy(goal.land);
+      u.uNight.value = goal.night; u.uFall.value = goal.fall; u.uGradient.value = goal.gradient; u.uGlowAmt.value = goal.glow; u.uExposure.value = goal.exposure; u.uStyleSize.value = goal.size; }
+  }
+  setTheme(theme, false);
   const points = new THREE.Points(g, mat), group = new THREE.Group(); group.add(points); scene.add(group);
 
   let viewW = 1, viewH = 1, W = 1, H = 1;
@@ -140,6 +194,10 @@ export function createParticles(container, { content, portraitData, reducedMotio
     if (Math.abs(state.stage - shown) < 1e-4) shown = state.stage;
     const s = shown; u.uStage.value = s; u.uRing.value = state.ring; u.uFormation.value = state.formation;
     u.uTurb.value += (Math.min(Math.abs(state.velocity) / 2400, 1) - u.uTurb.value) * (1 - Math.exp(-dt / 0.15));
+    const tk = 1 - Math.exp(-dt / 0.28), ease = (key, v) => (u[key].value += (v - u[key].value) * tk);
+    u.uColor.value.lerp(goal.color, tk); u.uColor2.value.lerp(goal.color2, tk); u.uCity.value.lerp(goal.city, tk); u.uLand.value.lerp(goal.land, tk);
+    ease("uNight", goal.night); ease("uFall", goal.fall); ease("uGradient", goal.gradient); ease("uGlowAmt", goal.glow); ease("uExposure", goal.exposure); ease("uStyleSize", goal.size);
+    u.uPulse.value *= Math.exp(-dt / 0.45);
     // pose: blend the two neighbouring stage poses
     const i = Math.min(Math.floor(s), POSES.length - 1), f = THREE.MathUtils.smoothstep(s - i, 0, 1), a = POSES[i], b = POSES[Math.min(i + 1, POSES.length - 1)];
     const mob = W < 760, k = (key) => lerp(a[key], b[key], f);
@@ -171,5 +229,5 @@ export function createParticles(container, { content, portraitData, reducedMotio
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  return { state, resize, dispose() { running = false; renderer.dispose(); g.dispose(); mat.dispose(); renderer.domElement.remove(); } };
+  return { state, resize, setTheme, dispose() { running = false; renderer.dispose(); g.dispose(); mat.dispose(); renderer.domElement.remove(); } };
 }

@@ -2,6 +2,7 @@
 // derived from real section positions, section fades, text reveals and the particle system.
 import Lenis from "/vendor/lenis.mjs";
 import { createParticles } from "./particles.js";
+import { createRain } from "./rain.js";
 
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 function h(tag, attrs = {}, ...kids) {
@@ -18,6 +19,22 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const safeUrl = (u) => (/^(https?:|mailto:)/i.test(u || "") ? u : null);
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TH = window.__spTheme; // set up by /js/theme-boot.js before first paint
+let theme = null; // the active theme object
+
+// ---------- text decode ("scramble") effect for themes that use it ----------
+const GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉ0123456789#$%&*+<>";
+function scramble(el, dur = 420, delay = 0) {
+  if (reducedMotion) return;
+  const orig = (el.dataset.orig ??= el.textContent); cancelAnimationFrame(el._scr); clearTimeout(el._scrT);
+  el._scrT = setTimeout(() => { const t0 = performance.now();
+    const step = (t) => { const k = Math.min((t - t0) / dur, 1); let out = "";
+      for (let i = 0; i < orig.length; i++) out += /\s/.test(orig[i]) || i < k * orig.length ? orig[i] : GLYPHS[(Math.random() * GLYPHS.length) | 0];
+      el.textContent = k < 1 ? out : orig; if (k < 1) el._scr = requestAnimationFrame(step); };
+    el._scr = requestAnimationFrame(step); }, delay);
+}
+const scrambling = () => theme?.text === "scramble" && !reducedMotion;
+const scrambleChars = (root, gap = 26) => $$(".char, .echar", root).forEach((c, i) => scramble(c, 380, i * gap));
 const coarse = matchMedia("(pointer: coarse)").matches;
 
 function render(c) {
@@ -36,19 +53,19 @@ function render(c) {
       h("div", { class: "sticky" },
         h("div", { class: "ring", "aria-hidden": "true" }, svg("svg", { viewBox: "0 0 400 400" },
           svg("defs", {}, svg("path", { id: "ringPath", d: "M200,200 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" })),
-          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "57%" }, c.globe.ringTop)),
-          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "7%" }, c.globe.ringBottom)))),
+          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "57%", class: "scr" }, c.globe.ringTop)),
+          svg("text", {}, svg("textPath", { href: "#ringPath", startOffset: "7%", class: "scr" }, c.globe.ringBottom)))),
         h("p", { class: "sr-only" }, `${c.globe.ringTop}. ${c.globe.ringBottom}.`),
         reducedMotion ? null : h("p", { class: "globe-hint", "aria-hidden": "true" }, "Drag to spin"))),
     h("section", { class: "s s-location s-india", "data-stage": "3", "data-len": "1.25" },
-      h("div", { class: "sticky" }, h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), c.location.fromLabel))),
+      h("div", { class: "sticky" }, h("p", { class: "map-label from", id: "mapFrom" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.fromLabel)))),
     h("section", { class: "s s-location s-uae", "data-stage": "4", "data-len": "1.25" },
-      h("div", { class: "sticky" }, h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), c.location.basedLabel))),
+      h("div", { class: "sticky" }, h("p", { class: "map-label based", id: "mapBased" }, h("i", { class: "pin" }), h("span", { class: "scr" }, c.location.basedLabel)))),
     h("section", { class: "s s-approach", "data-stage": "5", "data-len": "1.25" },
       h("div", { class: "sticky" }, h("p", { class: "statement small approach reveal-words" }, words(c.approach.text)))),
     h("section", { class: "s s-works", "data-stage": "6", id: "work" },
       h("div", { class: "sticky" },
-        h("div", { class: "works-head" }, h("p", { class: "kicker" }, c.works.kicker), h("p", { class: "works-count" }, h("span", { id: "workIdx" }, "01"), ` / ${pad(works.length)}`)),
+        h("div", { class: "works-head" }, h("p", { class: "kicker scr" }, c.works.kicker), h("p", { class: "works-count" }, h("span", { id: "workIdx" }, "01"), ` / ${pad(works.length)}`)),
         h("ol", { class: "track", id: "track" }, works.map((w, i) => { const href = safeUrl(w.url);
           return h("li", { class: "work" }, h(href ? "a" : "div", { class: "work-link", href, target: href && !href.startsWith("mailto:") ? "_blank" : null, rel: href ? "noopener" : null },
             h("span", { class: "work-thumb" }, w.thumb ? h("img", { src: w.thumb, alt: "", loading: "lazy", decoding: "async", width: "800", height: "500" }) : h("span", { class: "work-thumb-empty" }, w.title.slice(0, 1))),
@@ -59,7 +76,7 @@ function render(c) {
     h("section", { class: "s s-closing", "data-stage": "7", "data-len": "1.15" },
       h("div", { class: "sticky" }, h("p", { class: "statement closing reveal-words" }, words(c.works.closingLine)))),
     h("section", { class: "s s-contact", "data-stage": "8", id: "contact" },
-      h("div", { class: "contact" }, h("p", { class: "kicker" }, c.contact.kicker),
+      h("div", { class: "contact" }, h("p", { class: "kicker scr" }, c.contact.kicker),
         h("a", { class: "email", id: "email", href: `mailto:${c.contact.email}` }, chars(c.contact.email, "echar")),
         c.contact.links.length ? h("p", { class: "links" }, c.contact.note, " ", c.contact.links.map((l, i) => [i ? h("span", { class: "dot" }, "·") : null, h("a", { href: safeUrl(l.url), target: "_blank", rel: "noopener" }, l.label)])) : null),
       h("footer", { class: "foot" }, h("span", { class: "foot-left" }, h("span", { class: "mono", "data-tip": c.footer.tip, tabindex: "0" }, initials(name)), `${c.footer.text} — © ${new Date().getFullYear()}`),
@@ -90,6 +107,7 @@ function update(y, gl) {
     // fade each section in as it arrives and out as it leaves
     const vis = clamp(Math.min((y - (s.top - vh * 0.55)) / (vh * 0.45), (s.top + s.height - vh * 0.35 - y) / (vh * 0.45)), 0, 1);
     s.el.style.setProperty("--vis", vis.toFixed(3));
+    const arrived = vis > 0.5; if (arrived !== !!s.arrived) { s.arrived = arrived; if (arrived && scrambling()) $$(".scr", s.el).forEach((e, i) => scramble(e, 520, i * 90)); }
     const prog = clamp((y - s.top) / Math.max(s.height - vh, 1), 0, 1);
     s.el.style.setProperty("--prog", prog.toFixed(4));
     if (s.el.classList.contains("s-works")) {
@@ -99,11 +117,12 @@ function update(y, gl) {
       $("#workIdx").textContent = String(idx + 1).padStart(2, "0");
     }
     for (const p of $$(".reveal-words", s.el)) { const ws = $$(".word", p); const lit = vis < 0.05 ? 0 : Math.round(clamp(prog * 1.6 + 0.15, 0, 1) * ws.length);
-      if (+p.dataset.lit !== lit) { p.dataset.lit = lit; ws.forEach((w, i) => w.classList.toggle("on", i < lit || reducedMotion)); } }
+      if (+p.dataset.lit !== lit) { p.dataset.lit = lit; ws.forEach((w, i) => { const on = i < lit || reducedMotion; if (on && !w.classList.contains("on") && scrambling()) scramble(w, 360); w.classList.toggle("on", on); }); } }
   }
   const ring = $(".ring svg"); if (ring) ring.style.transform = `rotate(${(((gl?.state.globeAngle || 0) * 180) / Math.PI + y * 0.03) % 360}deg)`;
   document.documentElement.style.setProperty("--bar", clamp((y - vh * 0.6) / (vh * 0.4), 0, 1).toFixed(3));
-  const contact = $(".s-contact"); if (contact) contact.classList.toggle("in", y + vh * 0.75 > contact.offsetTop);
+  const contact = $(".s-contact"); if (contact) { const inView = y + vh * 0.75 > contact.offsetTop;
+    if (inView && !contact.classList.contains("in") && scrambling()) scrambleChars($("#email"), 18); contact.classList.toggle("in", inView); }
   if (gl) { gl.state.stage = stageAt(y); const e = $("#email"); if (e) gl.state.rect = e.getBoundingClientRect();
     // pin the map labels to India and the UAE as the map moves
     // anchors are viewport px; each label lives in its own section's sticky box
@@ -116,7 +135,7 @@ function update(y, gl) {
 function runPreloader(gl, lenis) {
   const pre = $("#preloader"), count = $("#count"); let seen = false;
   try { seen = sessionStorage.getItem("sp-preloaded") === "1"; } catch { /* storage blocked */ }
-  const finish = () => { document.body.classList.remove("is-loading"); document.body.classList.add("is-ready"); pre.remove(); lenis?.start(); };
+  const finish = () => { document.body.classList.remove("is-loading"); document.body.classList.add("is-ready"); pre.remove(); lenis?.start(); if (scrambling()) scrambleChars($(".hero-title"), 30); };
   if (reducedMotion) { if (gl) { gl.state.formation = 1; gl.state.ring = 0; } finish(); return; }
   const form = (dur) => { if (!gl) return; const t0 = performance.now(); const step = (t) => { const k = Math.min((t - t0) / dur, 1); gl.state.formation = k; if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
   if (seen || !gl) { if (gl) gl.state.ring = 0; form(2200); setTimeout(finish, 300); return; }
@@ -138,22 +157,48 @@ function cursor() {
   const loop = () => { cx += (x - cx) * 0.2; cy += (y - cy) * 0.2; c.style.transform = `translate3d(${cx}px,${cy}px,0)`; requestAnimationFrame(loop); }; loop();
 }
 
+// ---------- theme switcher (top right) ----------
+function themeSwitcher() {
+  const box = $("#themeSwitch"); if (!box) return;
+  if (!TH || !TH.data.switcher || TH.data.enabled.length < 2) { box.hidden = true; return; }
+  const L = TH.data.list;
+  const label = h("span", { class: "ts-label" }, L[TH.id].label);
+  const btn = h("button", { type: "button", class: "ts-btn", "aria-haspopup": "true", "aria-expanded": "false", title: "Change theme" }, h("i", { class: "ts-dot", "aria-hidden": "true" }), h("span", { class: "sr-only" }, "Theme: "), label);
+  const items = TH.data.enabled.map((id) => h("button", { type: "button", role: "menuitemradio", "aria-checked": String(id === TH.id), "data-id": id, style: `--sw-bg:${L[id].bg};--sw-a:${L[id].particle};--sw-b:${L[id].particle2}` },
+    h("i", { class: "ts-sw", "aria-hidden": "true" }), h("span", {}, L[id].label), h("small", {}, L[id].kind)));
+  const menu = h("div", { class: "ts-menu", role: "menu", "aria-label": "Theme" }, items);
+  const open = (v) => { box.classList.toggle("open", v); btn.setAttribute("aria-expanded", String(v)); if (v) items.find((b) => b.dataset.id === TH.id)?.focus(); };
+  btn.addEventListener("click", () => open(!box.classList.contains("open")));
+  for (const b of items) b.addEventListener("click", () => { TH.set(b.dataset.id); open(false); btn.focus(); });
+  menu.addEventListener("keydown", (e) => { const i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus(); } });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && box.classList.contains("open")) { open(false); btn.focus(); } });
+  document.addEventListener("pointerdown", (e) => { if (!box.contains(e.target)) open(false); });
+  TH.on((id) => { label.textContent = L[id].label; for (const b of items) b.setAttribute("aria-checked", String(b.dataset.id === id)); });
+  box.replaceChildren(btn, menu);
+}
+
 async function boot() {
   let content;
   try { content = await (await fetch("/api/content", { cache: "no-cache" })).json(); }
   catch { $("#main").replaceChildren(h("p", { class: "noscript" }, "Could not load the page content. Please refresh.")); document.body.classList.remove("is-loading"); return; }
   document.title = content.site.title;
+  const T = content.site.themes; theme = TH ? TH.theme : T.list[T.default];
   render(content);
+  themeSwitcher();
   let portrait = null;
   if (content.portrait?.enabled) portrait = await fetch("/api/portrait", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   await document.fonts?.load?.("800 100px Inter").catch(() => {});
-  const gl = createParticles($("#gl"), { content, portraitData: portrait, reducedMotion, coarse });
+  const gl = createParticles($("#gl"), { theme, portraitData: portrait, reducedMotion, coarse });
   if (!gl) document.body.classList.add("no-webgl");
+  const rain = createRain($("#rain"), { reducedMotion }); rain.set(theme);
+  TH?.on((id, t) => { theme = t; gl?.setTheme(t, true); rain.set(t);
+    if (scrambling()) { scrambleChars($(".hero-title"), 14); $$(".scr").forEach((e) => scramble(e, 520)); } });
   const lenis = reducedMotion ? null : new Lenis({ lerp: 0.13, wheelMultiplier: 1, autoRaf: false });
   window.__lenis = lenis;
   measure();
   let lastY = scrollY, lastT = performance.now();
-  const raf = (t) => { lenis?.raf(t); const y = lenis ? lenis.animatedScroll : scrollY; if (gl) { gl.state.velocity = ((y - lastY) / Math.max(t - lastT, 1)) * 1000; } lastY = y; lastT = t; update(y, gl); requestAnimationFrame(raf); };
+  const raf = (t) => { lenis?.raf(t); const y = lenis ? lenis.animatedScroll : scrollY; const v = ((y - lastY) / Math.max(t - lastT, 1)) * 1000; if (gl) gl.state.velocity = v; rain.boost = Math.max(rain.boost, Math.min(Math.abs(v) / 1200, 3)); lastY = y; lastT = t; update(y, gl); requestAnimationFrame(raf); };
   requestAnimationFrame(raf);
   addEventListener("resize", () => { measure(); lenis?.resize(); });
   new ResizeObserver(() => measure()).observe($("#main"));
